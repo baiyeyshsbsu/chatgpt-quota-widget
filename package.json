@@ -1,9 +1,9 @@
 {
   "name": "codex-led-widget",
   "version": "0.1.0",
-  "description": "Windows desktop LED widget for showing local Codex usage quota.",
+  "description": "Windows desktop LED widget for showing local ChatGPT (desktop) usage quota.",
   "main": "src/main/main.js",
-  "author": "Codex Quota Widget Contributors",
+  "author": "ChatGPT Quota Widget Contributors",
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -14,7 +14,7 @@
   },
   "build": {
     "appId": "cn.codex.quota.widget",
-    "productName": "Codex Quota Widget",
+    "productName": "ChatGPT Quota Widget",
     "directories": {
       "output": "dist"
     },
@@ -34,7 +34,7 @@
       ]
     },
     "portable": {
-      "artifactName": "Codex-Quota-Widget-${version}-win-x64.exe"
+      "artifactName": "ChatGPT-Quota-Widget-${version}-win-x64.exe"
     }
   },
   "devDependencies": {

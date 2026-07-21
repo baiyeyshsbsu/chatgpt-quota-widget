@@ -6,7 +6,10 @@ const DEFAULT_TIMEOUT_MS = 12000;
 
 function resolveCodexPath() {
   const localAppData = process.env.LOCALAPPDATA || "";
+  // ChatGPT 桌面版（由 Codex 升级而来）所用的 CLI 二进制位于 C 盘此路径；
+  // 配额读取复用它，并通过同一 OpenAI 账号拿到真实额度。
   const candidates = [
+    process.env.CHATGPT_CODEX_PATH,
     process.env.CODEX_CLI_PATH,
     path.join(localAppData, "OpenAI", "Codex", "bin", "codex.exe")
   ].filter(Boolean);
@@ -26,7 +29,7 @@ async function getQuota() {
     firstSnapshot(response.rateLimitsByLimitId);
 
   if (!snapshot) {
-    throw new Error("Codex did not return a rate-limit snapshot.");
+    throw new Error("ChatGPT did not return a rate-limit snapshot.");
   }
 
   return normalizeSnapshot(snapshot);
@@ -39,21 +42,27 @@ function firstSnapshot(map) {
 }
 
 function normalizeSnapshot(snapshot) {
-  const primary = normalizeWindow(snapshot.primary);
-  const secondary = normalizeWindow(snapshot.secondary);
-  const activeWindow = primary || secondary;
+  // ChatGPT 桌面版（原 Codex）升级后只施加「一周（7 天）」额度限制，
+  // 旧 5 小时窗口已移除。API 把该窗口放在 snapshot.primary
+  // （windowDurationMins = 10080），snapshot.secondary 为 null。
+  const activeWindow =
+    normalizeWindow(snapshot.primary) || normalizeWindow(snapshot.secondary);
 
   return {
     limitId: snapshot.limitId || "codex",
-    limitName: snapshot.limitName || "Codex",
+    limitName: snapshot.limitName || "ChatGPT",
     planType: snapshot.planType || "unknown",
     reachedType: snapshot.rateLimitReachedType || null,
     credits: snapshot.credits || null,
-    primary,
-    secondary,
+    primary: null,
+    secondary: null,
     remainingPercent: activeWindow ? activeWindow.remainingPercent : null,
     usedPercent: activeWindow ? activeWindow.usedPercent : null,
     resetsAt: activeWindow ? activeWindow.resetsAt : null,
+    windowKind:
+      activeWindow && (activeWindow.windowDurationMins ?? 0) >= 10080
+        ? "weekly"
+        : "primary",
     fetchedAt: new Date().toISOString()
   };
 }
@@ -102,7 +111,7 @@ function requestRateLimits() {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         pending.delete(id);
-        reject(new Error(`Codex request timed out: ${method}`));
+        reject(new Error(`ChatGPT request timed out: ${method}`));
       }, DEFAULT_TIMEOUT_MS);
       pending.set(id, { resolve, reject, timer });
     });
@@ -132,7 +141,7 @@ function requestRateLimits() {
     child.once("exit", (code) => {
       if (pending.size > 0) {
         cleanup();
-        reject(new Error(stderr || `Codex app-server exited with code ${code}`));
+        reject(new Error(stderr || `ChatGPT app-server exited with code ${code}`));
       }
     });
 
@@ -140,8 +149,8 @@ function requestRateLimits() {
       try {
         await send("initialize", {
           clientInfo: {
-            name: "codex-led-widget",
-            title: "Codex LED Widget",
+            name: "chatgpt-led-widget",
+            title: "ChatGPT LED Widget",
             version: "0.1.0"
           },
           capabilities: null

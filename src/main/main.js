@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen } = require("electron");
 const path = require("node:path");
+const { spawn } = require("node:child_process");
 const { getQuota } = require("./quota-service");
 
 let mainWindow;
@@ -51,7 +52,7 @@ function createTray() {
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAK0lEQVR42mNk+M9Qz0AEYBxVSFUBCzAyMjL8Z2BgYJjFqIGjBo4aOAIAgV4EfpO0k7EAAAAASUVORK5CYII="
   );
   tray = new Tray(icon);
-  tray.setToolTip("Codex Quota Widget");
+  tray.setToolTip("ChatGPT Quota Widget");
   rebuildTrayMenu();
   tray.on("click", toggleWindow);
 }
@@ -101,8 +102,15 @@ app.whenReady().then(() => {
   ipcMain.handle("window:close", () => app.quit());
   ipcMain.handle("window:alwaysOnTop:get", () => isAlwaysOnTop);
   ipcMain.handle("window:alwaysOnTop:set", (_event, value) => setAlwaysOnTop(value));
-  ipcMain.handle("external:openCodex", () => {
-    shell.openPath(path.join(process.env.LOCALAPPDATA || "", "OpenAI", "Codex", "bin", "codex.exe"));
+  ipcMain.handle("external:openChatGpt", () => {
+    // 启动 ChatGPT 桌面版（原 Codex）。`codex app` 会打开已安装的桌面应用。
+    const codexPath = path.join(process.env.LOCALAPPDATA || "", "OpenAI", "Codex", "bin", "codex.exe");
+    try {
+      const child = spawn(codexPath, ["app"], { detached: true, windowsHide: true, stdio: "ignore" });
+      child.unref();
+    } catch (_) {
+      shell.openPath(codexPath);
+    }
   });
 
   app.on("activate", () => {
