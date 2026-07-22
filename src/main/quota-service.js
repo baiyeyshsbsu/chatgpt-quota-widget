@@ -22,7 +22,7 @@ function resolveCodexPath() {
 }
 
 async function getQuota() {
-  const response = await requestRateLimits();
+  const { response, account } = await requestSnapshot();
   const snapshot =
     response.rateLimitsByLimitId?.codex ||
     response.rateLimits ||
@@ -32,7 +32,15 @@ async function getQuota() {
     throw new Error("ChatGPT did not return a rate-limit snapshot.");
   }
 
-  return normalizeSnapshot(snapshot);
+  return {
+    ...normalizeSnapshot(snapshot),
+    currentAccount:
+      account && account.type === "chatgpt"
+        ? { type: account.type, email: account.email, planType: account.planType }
+        : account
+          ? { type: account.type }
+          : null
+  };
 }
 
 function firstSnapshot(map) {
@@ -83,7 +91,7 @@ function clampPercent(value) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
 
-function requestRateLimits() {
+function requestSnapshot() {
   const codexPath = resolveCodexPath();
   const child = spawn(codexPath, ["app-server", "--listen", "stdio://"], {
     stdio: ["pipe", "pipe", "pipe"],
@@ -155,9 +163,10 @@ function requestRateLimits() {
           },
           capabilities: null
         });
+        const accountResult = await send("account/read", { refreshToken: false }).catch(() => null);
         const result = await send("account/rateLimits/read");
         cleanup();
-        resolve(result);
+        resolve({ response: result, account: accountResult?.account || null });
       } catch (error) {
         cleanup();
         reject(new Error(stderr || error.message));

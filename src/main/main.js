@@ -1,11 +1,25 @@
 const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen } = require("electron");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
+const { createHash } = require("node:crypto");
 const { getQuota } = require("./quota-service");
+const store = require("./store");
 
 let mainWindow;
 let tray;
 let isAlwaysOnTop = true;
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  });
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -93,11 +107,11 @@ function toggleWindow() {
   }
 }
 
-app.whenReady().then(() => {
+if (hasSingleInstanceLock) app.whenReady().then(() => {
   createWindow();
   createTray();
 
-  ipcMain.handle("quota:get", async () => getQuota());
+  ipcMain.handle("quota:get", async () => readCurrentQuota());
   ipcMain.handle("window:minimize", () => mainWindow?.hide());
   ipcMain.handle("window:close", () => app.quit());
   ipcMain.handle("window:alwaysOnTop:get", () => isAlwaysOnTop);
@@ -113,10 +127,109 @@ app.whenReady().then(() => {
     }
   });
 
+  // ---- multi-account local storage ----
+  ipcMain.handle("store:getAccounts", () => store.getAccounts());
+  ipcMain.handle("store:getActiveAccount", () => store.getActiveAccount());
+  ipcMain.handle("store:addAccount", async (_e, label) => {
+    const snapshot = await getQuota();
+    const identity = accountIdentity(snapshot.currentAccount);
+    const quota = withoutCurrentAccount(snapshot);
+    const account = store.addAccount(label, identity, quota);
+    return { account, quota: { ...quota, account: accountContext(account, identity) } };
+  });
+  ipcMain.handle("store:removeAccount", (_e, id) => {
+    store.removeAccount(id);
+  });
+  ipcMain.handle("store:setActiveAccount", (_e, id) => store.setActiveAccount(id));
+  ipcMain.handle("store:bindAccount", async (_e, id) => {
+    const snapshot = await getQuota();
+    const identity = accountIdentity(snapshot.currentAccount);
+    const quota = withoutCurrentAccount(snapshot);
+    const account = store.bindAccount(id, identity, quota);
+    return { account, quota: { ...quota, account: accountContext(account, identity) } };
+  });
+
+  // "Save current reading": always re-read live quota in the main process
+  // so we capture whichever account is signed into the local ChatGPT desktop app.
+  ipcMain.handle("store:saveReading", async (_e, id) => {
+    const targetId = id || store.getActiveAccount()?.id;
+    if (!targetId) throw new Error("请先添加并选择一个账号");
+    const q = await getQuota();
+    const identity = accountIdentity(q.currentAccount);
+    return store.bindAccount(targetId, identity, withoutCurrentAccount(q));
+  });
+
+  ipcMain.handle("store:setResetCount", (_e, id, n) => store.setResetCount(id, n));
+  // Resize window between the compact LED view and the accounts panel view.
+  ipcMain.handle("window:view:set", (_e, request) => {
+    if (!mainWindow) return;
+    const view = typeof request === "string" ? request : request?.view;
+    const display = screen.getPrimaryDisplay();
+    const { workArea } = display;
+    const requestedHeight = Number(request?.height);
+    const h = view === "accounts"
+      ? Math.max(236, Math.min(Number.isFinite(requestedHeight) ? requestedHeight : 460, workArea.height - 48))
+      : 236;
+    mainWindow.setBounds({
+      x: workArea.x + workArea.width - 390 - 24,
+      y: workArea.y + 24,
+      width: 390,
+      height: h
+    });
+  });
+
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+function withoutCurrentAccount(snapshot) {
+  const { currentAccount: _currentAccount, ...quota } = snapshot;
+  return quota;
+}
+
+function maskEmail(email) {
+  const normalized = String(email || "").trim().toLowerCase();
+  const at = normalized.indexOf("@");
+  if (at <= 0) return "已识别";
+  const local = normalized.slice(0, at);
+  return `${local.slice(0, Math.min(2, local.length))}***${normalized.slice(at)}`;
+}
+
+function accountIdentity(account) {
+  if (!account || account.type !== "chatgpt" || !account.email) {
+    throw new Error("当前 Codex 登录态未返回可识别的账号邮箱");
+  }
+  const email = String(account.email).trim().toLowerCase();
+  return {
+    key: createHash("sha256").update(email).digest("hex"),
+    hint: maskEmail(email),
+    planType: account.planType || "unknown"
+  };
+}
+
+function accountContext(account, identity) {
+  return {
+    recognized: Boolean(account),
+    id: account?.id || null,
+    label: account?.label || null,
+    hint: identity?.hint || null
+  };
+}
+
+async function readCurrentQuota() {
+  const snapshot = await getQuota();
+  const quota = withoutCurrentAccount(snapshot);
+  let identity = null;
+  let account = null;
+  try {
+    identity = accountIdentity(snapshot.currentAccount);
+    account = store.observeAccount(identity, quota);
+  } catch (_) {
+    // Quota remains useful even if this auth mode has no stable account identity.
+  }
+  return { ...quota, account: accountContext(account, identity) };
+}
 
 app.on("window-all-closed", (event) => {
   event.preventDefault();

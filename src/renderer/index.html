@@ -21,6 +21,12 @@
         </div>
         <div class="window-actions">
           <button id="langBtn" class="text-button" title="Language" aria-label="Language">EN</button>
+          <button id="accountsBtn" class="icon-button" title="账号管理" aria-label="账号管理">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path class="accounts-icon-manage" d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9 4-2 1 1 2-2 2-2-1-1 2h-2l-1-2-2 1-2-2 1-2-2-1v-2l2-1-1-2 2-2 2 1 1-2h2l1 2 2-1 2 2-1 2 2 1z" />
+              <path class="accounts-icon-back" d="M15 5l-7 7 7 7" />
+            </svg>
+          </button>
           <button id="pinBtn" class="icon-button active" title="取消置顶" aria-label="取消置顶">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M14 4l6 6-3 1-4 4v4l-2 2-2-6-6-2 2-2h4l4-4 1-3z" />
@@ -32,12 +38,12 @@
             </svg>
           </button>
           <button id="minimizeBtn" class="icon-button" title="隐藏" aria-label="隐藏">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
+            <svg class="stroke-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M5 12h14" />
             </svg>
           </button>
           <button id="closeBtn" class="icon-button danger" title="退出" aria-label="退出">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
+            <svg class="stroke-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 6l12 12M18 6 6 18" />
             </svg>
           </button>
@@ -60,11 +66,11 @@
 
         <div class="quota-panel">
           <div class="quota-card">
-            <span id="secondaryLabel">7天额度</span>
+            <span id="secondaryLabel">一周</span>
             <strong id="secondaryText">--</strong>
           </div>
           <div class="quota-card slim">
-            <span id="planLabel">计划</span>
+            <span id="planLabel">套餐</span>
             <strong id="planText">--</strong>
           </div>
         </div>
@@ -74,7 +80,25 @@
         <span id="statusDot" class="status-dot loading"></span>
         <span id="statusText">正在读取 ChatGPT 额度...</span>
       </footer>
+
+      <section class="accounts-panel" id="accountsPanel" hidden>
+        <div class="accounts-header">
+          <span id="accountsTitle">账户概览</span>
+          <div class="accounts-header-actions">
+            <button id="saveReadingBtn" class="text-button primary">识别并更新</button>
+            <button id="addAccountBtn" class="text-button">+ 账号</button>
+          </div>
+        </div>
+        <div class="accounts-list" id="accountsList"><!-- 由 renderer.js 动态填充 --></div>
+        <div class="accounts-pagination" id="accountsPagination" hidden>
+          <button id="previousAccountsPageBtn" class="text-button" type="button">上一页</button>
+          <span id="accountsPageText">1 / 1</span>
+          <button id="nextAccountsPageBtn" class="text-button" type="button">下一页</button>
+        </div>
+      </section>
     </main>
+
+    <div id="toast" class="toast" hidden></div>
 
     <script src="./renderer.js"></script>
   </body>
