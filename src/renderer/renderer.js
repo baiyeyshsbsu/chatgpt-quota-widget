@@ -456,26 +456,14 @@
       els.accountsList.querySelectorAll(".account-quota").forEach((quota) => {
         let clickCount = 0;
         let lastClickAt = 0;
-        quota.addEventListener("click", async () => {
+        quota.addEventListener("click", () => {
           const now = Date.now();
-          clickCount = now - lastClickAt <= 900 ? clickCount + 1 : 1;
+          clickCount = now - lastClickAt <= 1300 ? clickCount + 1 : 1;
           lastClickAt = now;
+          quota.title = clickCount > 1 ? `${clickCount}/5` : "";
           if (clickCount < 5) return;
           clickCount = 0;
-          const input = window.prompt(STR[lang].manualQuotaPrompt, quota.dataset.value || "");
-          if (input === null) return;
-          const value = Number(input);
-          if (!Number.isFinite(value) || value < 0 || value > 100) {
-            showToast(STR[lang].manualQuotaInvalid);
-            return;
-          }
-          try {
-            await window.chatgptQuota.setManualRemainingPercent(quota.dataset.id, value);
-            showToast(STR[lang].manualQuotaSaved);
-            renderAccounts();
-          } catch (error) {
-            showToast(error?.message || STR[lang].manualQuotaInvalid);
-          }
+          beginManualQuotaEdit(quota);
         });
       });
       els.accountsList.querySelectorAll(".bind-current").forEach((b) =>
@@ -503,6 +491,50 @@
     } catch (_) {
       /* ignore render errors */
     }
+  }
+
+  function beginManualQuotaEdit(quota) {
+    const input = document.createElement("input");
+    input.type = "number";
+    input.min = "0";
+    input.max = "100";
+    input.step = "1";
+    input.className = "account-quota-input";
+    input.value = quota.dataset.value || "";
+    input.setAttribute("aria-label", STR[lang].manualQuotaPrompt);
+    const accountId = quota.dataset.id;
+    let settled = false;
+    quota.replaceWith(input);
+    input.focus();
+    input.select();
+
+    const cancel = () => {
+      if (settled) return;
+      settled = true;
+      renderAccounts();
+    };
+    const save = async () => {
+      if (settled) return;
+      const value = Number(input.value);
+      if (!Number.isFinite(value) || value < 0 || value > 100) {
+        showToast(STR[lang].manualQuotaInvalid);
+        input.focus();
+        return;
+      }
+      settled = true;
+      try {
+        await window.chatgptQuota.setManualRemainingPercent(accountId, value);
+        showToast(STR[lang].manualQuotaSaved);
+      } catch (error) {
+        showToast(error?.message || STR[lang].manualQuotaInvalid);
+      }
+      renderAccounts();
+    };
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") save();
+      if (event.key === "Escape") cancel();
+    });
+    input.addEventListener("blur", save);
   }
 
   function resizeAccountsView() {

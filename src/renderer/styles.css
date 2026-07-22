@@ -462,6 +462,21 @@ body[data-view="accounts"] #accountsBtn { order: -1; }
   cursor: pointer;
   user-select: none;
 }
+.account-quota-input {
+  flex: none;
+  width: 64px;
+  height: 30px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--green);
+  border-radius: 7px;
+  padding: 3px 6px;
+  font-size: 18px;
+  font-weight: 700;
+  text-align: right;
+  outline: none;
+  box-shadow: 0 0 10px rgba(46, 230, 160, 0.24);
+}
 .account-reset {
   display: flex;
   align-items: center;
