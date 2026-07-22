@@ -1,27 +1,27 @@
 const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen } = require("electron");
 const path = require("node:path");
+const fs = require("node:fs");
 const { spawn } = require("node:child_process");
 const { createHash } = require("node:crypto");
-const { getQuota } = require("./quota-service");
+const { getQuota, diagnoseQuotaError, QUOTA_ERROR } = require("./quota-service");
 const store = require("./store");
 
 let mainWindow;
 let tray;
 let isAlwaysOnTop = true;
+let isQuitting = false;
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 if (!hasSingleInstanceLock) {
   app.quit();
 } else {
   app.on("second-instance", () => {
-    if (!mainWindow) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.show();
-    mainWindow.focus();
+    showWindow();
   });
 }
 
 function createWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) return mainWindow;
   mainWindow = new BrowserWindow({
     width: 390,
     height: 236,
@@ -43,9 +43,28 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
   mainWindow.once("ready-to-show", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
     mainWindow.show();
     placeWindowTopRight();
   });
+  mainWindow.on("close", (event) => {
+    if (isQuitting) return;
+    event.preventDefault();
+    mainWindow.hide();
+  });
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    writeLog("renderer-gone", `${details.reason || "unknown"}; code=${details.exitCode ?? "unknown"}`);
+    if (!isQuitting && mainWindow && !mainWindow.isDestroyed()) {
+      setTimeout(() => mainWindow && !mainWindow.isDestroyed() && mainWindow.reload(), 800);
+    }
+  });
+  mainWindow.webContents.on("did-fail-load", (_event, code, description) => {
+    writeLog("renderer-load-failed", `code=${code}; ${description || "unknown"}`);
+  });
+  return mainWindow;
 }
 
 function placeWindowTopRight() {
@@ -62,6 +81,7 @@ function placeWindowTopRight() {
 }
 
 function createTray() {
+  if (tray && !tray.isDestroyed()) return tray;
   const icon = nativeImage.createFromDataURL(
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAK0lEQVR42mNk+M9Qz0AEYBxVSFUBCzAyMjL8Z2BgYJjFqIGjBo4aOAIAgV4EfpO0k7EAAAAASUVORK5CYII="
   );
@@ -69,10 +89,11 @@ function createTray() {
   tray.setToolTip("ChatGPT Quota Widget");
   rebuildTrayMenu();
   tray.on("click", toggleWindow);
+  return tray;
 }
 
 function rebuildTrayMenu() {
-  if (!tray) return;
+  if (!tray || tray.isDestroyed()) return;
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: "显示/隐藏", click: toggleWindow },
@@ -82,14 +103,14 @@ function rebuildTrayMenu() {
         click: () => setAlwaysOnTop(!isAlwaysOnTop)
       },
       { type: "separator" },
-      { label: "退出", click: () => app.quit() }
+      { label: "退出", click: quitApplication }
     ])
   );
 }
 
 function setAlwaysOnTop(value) {
   isAlwaysOnTop = Boolean(value);
-  if (mainWindow) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.setAlwaysOnTop(isAlwaysOnTop);
     mainWindow.webContents.send("window:alwaysOnTopChanged", isAlwaysOnTop);
   }
@@ -98,7 +119,10 @@ function setAlwaysOnTop(value) {
 }
 
 function toggleWindow() {
-  if (!mainWindow) return;
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    return;
+  }
   if (mainWindow.isVisible()) {
     mainWindow.hide();
   } else {
@@ -111,9 +135,15 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   createWindow();
   createTray();
 
-  ipcMain.handle("quota:get", async () => readCurrentQuota());
+  ipcMain.handle("quota:get", async () => {
+    try {
+      return await readCurrentQuota();
+    } catch (error) {
+      throw quotaIpcError(error);
+    }
+  });
   ipcMain.handle("window:minimize", () => mainWindow?.hide());
-  ipcMain.handle("window:close", () => app.quit());
+  ipcMain.handle("window:close", () => mainWindow?.hide());
   ipcMain.handle("window:alwaysOnTop:get", () => isAlwaysOnTop);
   ipcMain.handle("window:alwaysOnTop:set", (_event, value) => setAlwaysOnTop(value));
   ipcMain.handle("external:openChatGpt", () => {
@@ -131,7 +161,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle("store:getAccounts", () => store.getAccounts());
   ipcMain.handle("store:getActiveAccount", () => store.getActiveAccount());
   ipcMain.handle("store:addAccount", async (_e, label) => {
-    const snapshot = await getQuota();
+    const snapshot = await getQuotaWithNetworkRetry();
     const identity = accountIdentity(snapshot.currentAccount);
     const quota = withoutCurrentAccount(snapshot);
     const account = store.addAccount(label, identity, quota);
@@ -142,7 +172,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   });
   ipcMain.handle("store:setActiveAccount", (_e, id) => store.setActiveAccount(id));
   ipcMain.handle("store:bindAccount", async (_e, id) => {
-    const snapshot = await getQuota();
+    const snapshot = await getQuotaWithNetworkRetry();
     const identity = accountIdentity(snapshot.currentAccount);
     const quota = withoutCurrentAccount(snapshot);
     const account = store.bindAccount(id, identity, quota);
@@ -154,12 +184,15 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle("store:saveReading", async (_e, id) => {
     const targetId = id || store.getActiveAccount()?.id;
     if (!targetId) throw new Error("请先添加并选择一个账号");
-    const q = await getQuota();
+    const q = await getQuotaWithNetworkRetry();
     const identity = accountIdentity(q.currentAccount);
     return store.bindAccount(targetId, identity, withoutCurrentAccount(q));
   });
 
   ipcMain.handle("store:setResetCount", (_e, id, n) => store.setResetCount(id, n));
+  ipcMain.handle("store:setManualRemainingPercent", (_e, id, value) =>
+    store.setManualRemainingPercent(id, value)
+  );
   // Resize window between the compact LED view and the accounts panel view.
   ipcMain.handle("window:view:set", (_e, request) => {
     if (!mainWindow) return;
@@ -179,13 +212,47 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   });
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    createTray();
+    showWindow();
   });
 });
 
 function withoutCurrentAccount(snapshot) {
   const { currentAccount: _currentAccount, ...quota } = snapshot;
   return quota;
+}
+
+function showWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function quitApplication() {
+  isQuitting = true;
+  app.quit();
+}
+
+function writeLog(event, detail = "") {
+  try {
+    const logPath = path.join(app.getPath("userData"), "widget.log");
+    const safeDetail = String(detail).replace(/[\r\n]+/g, " ").slice(0, 600);
+    fs.appendFileSync(logPath, `${new Date().toISOString()} ${event} ${safeDetail}\n`, "utf8");
+  } catch (_) {
+    // Logging must never affect the widget lifecycle.
+  }
+}
+
+function quotaIpcError(error) {
+  const diagnostic = error?.code
+    ? { code: error.code, message: error.message }
+    : diagnoseQuotaError(error);
+  writeLog("quota-read-failed", diagnostic.code);
+  return new Error(`QUOTA_DIAGNOSTIC|${diagnostic.code}`);
 }
 
 function maskEmail(email) {
@@ -218,7 +285,7 @@ function accountContext(account, identity) {
 }
 
 async function readCurrentQuota() {
-  const snapshot = await getQuota();
+  const snapshot = await getQuotaWithNetworkRetry();
   const quota = withoutCurrentAccount(snapshot);
   let identity = null;
   let account = null;
@@ -231,6 +298,22 @@ async function readCurrentQuota() {
   return { ...quota, account: accountContext(account, identity) };
 }
 
+async function getQuotaWithNetworkRetry() {
+  try {
+    return await getQuota();
+  } catch (error) {
+    if (error?.code !== QUOTA_ERROR.NETWORK) throw error;
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    return getQuota();
+  }
+}
+
 app.on("window-all-closed", (event) => {
   event.preventDefault();
+});
+app.on("before-quit", () => {
+  isQuitting = true;
+});
+process.on("uncaughtExceptionMonitor", (error) => {
+  writeLog("uncaught-exception", error?.message || error);
 });

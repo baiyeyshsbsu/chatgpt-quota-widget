@@ -6,7 +6,7 @@
   "use strict";
 
   const REFRESH_INTERVAL_MS = 120000; // 2 minutes
-  const ACCOUNTS_PER_PAGE = 4;
+  const ACCOUNTS_PER_PAGE = 5;
 
   const STR = {
     zh: {
@@ -19,7 +19,16 @@
       statusNoReset: "等待重置时间",
       statusReset: (when) => `重置于 ${when}`,
       exhausted: "额度已用尽（剩余 0%）",
-      error: "无法读取额度，请确认 ChatGPT 桌面版已安装并登录",
+      error: "无法读取额度",
+      staleReading: "暂时无法更新，已保留上次结果",
+      errorKinds: {
+        network: "疑似代理或网络连接异常",
+        component_missing: "本机未找到 Codex 组件",
+        component_start_failed: "本机 Codex 组件启动失败",
+        auth: "Codex 登录已失效或尚未登录",
+        service: "额度服务返回异常",
+        unknown: "发生未知读取错误"
+      },
       planUnknown: "未知",
       stateLoading: "读取中",
       stateOk: "额度充足",
@@ -52,7 +61,10 @@
       detectedUnregistered: "检测到未添加的账号",
       bindFailed: "绑定失败：",
       previousPage: "上一页",
-      nextPage: "下一页"
+      nextPage: "下一页",
+      manualQuotaPrompt: "请输入人工矫正额度（0–100）：",
+      manualQuotaInvalid: "请输入 0 到 100 之间的数字",
+      manualQuotaSaved: "人工额度已保存"
     },
     en: {
       brand: "ChatGPT Quota",
@@ -64,7 +76,16 @@
       statusNoReset: "Waiting for reset time",
       statusReset: (when) => `Resets ${when}`,
       exhausted: "Quota exhausted (0% left)",
-      error: "Cannot read quota. Make sure the ChatGPT desktop app is installed and signed in.",
+      error: "Cannot read quota",
+      staleReading: "Update unavailable; keeping the last result",
+      errorKinds: {
+        network: "Proxy or network connection problem",
+        component_missing: "Local Codex component was not found",
+        component_start_failed: "Local Codex component failed to start",
+        auth: "Codex sign-in is missing or expired",
+        service: "Quota service returned an unexpected response",
+        unknown: "Unknown quota-reading error"
+      },
       planUnknown: "Unknown",
       stateLoading: "Loading",
       stateOk: "Plenty left",
@@ -97,7 +118,10 @@
       detectedUnregistered: "Unregistered account detected",
       bindFailed: "Bind failed: ",
       previousPage: "Previous",
-      nextPage: "Next"
+      nextPage: "Next",
+      manualQuotaPrompt: "Enter a corrected quota (0–100):",
+      manualQuotaInvalid: "Enter a number between 0 and 100",
+      manualQuotaSaved: "Corrected quota saved"
     }
   };
 
@@ -273,14 +297,27 @@
     scheduleRefresh(resetsAt);
   }
 
-  function renderError(msg) {
-    lastData = null;
+  function quotaErrorKind(error) {
+    const raw = String(error?.message || error || "");
+    const match = raw.match(/QUOTA_DIAGNOSTIC\|([a-z_]+)/);
+    return match ? match[1] : "unknown";
+  }
+
+  function renderError(error) {
+    const kind = quotaErrorKind(error);
+    const reason = STR[lang].errorKinds[kind] || STR[lang].errorKinds.unknown;
+    if (lastData) {
+      renderQuota(lastData);
+      els.statusText.textContent = `${reason} · ${STR[lang].staleReading}`;
+      els.brandState.textContent = reason;
+      return;
+    }
     setState("error");
     els.liquidFill.style.setProperty("--level", "0%");
     els.remaining.textContent = "--%";
     els.secondaryText.textContent = STR[lang].error;
     els.planText.textContent = STR[lang].planUnknown;
-    els.statusText.textContent = msg ? `${STR[lang].error}（${msg}）` : STR[lang].error;
+    els.statusText.textContent = `${STR[lang].error}：${reason}`;
     els.brandState.textContent = STR[lang].stateError;
     scheduleRefresh(null);
   }
@@ -307,7 +344,7 @@
       const data = await window.chatgptQuota.getQuota();
       renderQuota(data);
     } catch (err) {
-      renderError(err && err.message ? err.message : "");
+      renderError(err);
     } finally {
       fetching = false;
     }
@@ -386,7 +423,8 @@
           (active && acc.id === active.id
             ? '<span class="account-active-badge">' + STR[lang].active + "</span>"
             : "") +
-          '</div><strong class="account-quota">' +
+          '</div><strong class="account-quota" data-id="' + acc.id + '" data-value="' +
+          (acc.remainingPercent == null ? "" : acc.remainingPercent) + '">' +
           (acc.remainingPercent == null ? STR[lang].remainingUnknown : acc.remainingPercent + "%") +
           "</strong></div>" +
           '<div class="account-reset"><span class="account-detail-label">' + STR[lang].nextReset +
@@ -415,6 +453,31 @@
           await window.chatgptQuota.setResetCount(inp.dataset.id, inp.value);
         })
       );
+      els.accountsList.querySelectorAll(".account-quota").forEach((quota) => {
+        let clickCount = 0;
+        let lastClickAt = 0;
+        quota.addEventListener("click", async () => {
+          const now = Date.now();
+          clickCount = now - lastClickAt <= 900 ? clickCount + 1 : 1;
+          lastClickAt = now;
+          if (clickCount < 5) return;
+          clickCount = 0;
+          const input = window.prompt(STR[lang].manualQuotaPrompt, quota.dataset.value || "");
+          if (input === null) return;
+          const value = Number(input);
+          if (!Number.isFinite(value) || value < 0 || value > 100) {
+            showToast(STR[lang].manualQuotaInvalid);
+            return;
+          }
+          try {
+            await window.chatgptQuota.setManualRemainingPercent(quota.dataset.id, value);
+            showToast(STR[lang].manualQuotaSaved);
+            renderAccounts();
+          } catch (error) {
+            showToast(error?.message || STR[lang].manualQuotaInvalid);
+          }
+        });
+      });
       els.accountsList.querySelectorAll(".bind-current").forEach((b) =>
         b.addEventListener("click", async () => {
           try {

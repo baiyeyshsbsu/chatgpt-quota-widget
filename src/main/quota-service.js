@@ -4,6 +4,15 @@ const path = require("node:path");
 
 const DEFAULT_TIMEOUT_MS = 12000;
 
+const QUOTA_ERROR = Object.freeze({
+  COMPONENT_MISSING: "component_missing",
+  COMPONENT_START_FAILED: "component_start_failed",
+  AUTH: "auth",
+  NETWORK: "network",
+  SERVICE: "service",
+  UNKNOWN: "unknown"
+});
+
 function resolveCodexPath() {
   const localAppData = process.env.LOCALAPPDATA || "";
   // ChatGPT 桌面版（由 Codex 升级而来）所用的 CLI 二进制位于 C 盘此路径；
@@ -22,7 +31,16 @@ function resolveCodexPath() {
 }
 
 async function getQuota() {
-  const { response, account } = await requestSnapshot();
+  let result;
+  try {
+    result = await requestSnapshot();
+  } catch (error) {
+    const diagnostic = diagnoseQuotaError(error);
+    const wrapped = new Error(diagnostic.message);
+    wrapped.code = diagnostic.code;
+    throw wrapped;
+  }
+  const { response, account } = result;
   const snapshot =
     response.rateLimitsByLimitId?.codex ||
     response.rateLimits ||
@@ -41,6 +59,27 @@ async function getQuota() {
           ? { type: account.type }
           : null
   };
+}
+
+function diagnoseQuotaError(error) {
+  const raw = String(error?.message || error || "");
+  const text = raw.toLowerCase();
+  if (/enoent|not recognized|cannot find|找不到.*codex/.test(text)) {
+    return { code: QUOTA_ERROR.COMPONENT_MISSING, message: "Codex component was not found." };
+  }
+  if (/401|403|unauthori[sz]ed|not logged|sign.?in|login|authentication|refresh token|token.*expired/.test(text)) {
+    return { code: QUOTA_ERROR.AUTH, message: "Codex account authentication is unavailable." };
+  }
+  if (/timed out|timeout|econn|enotfound|enetunreach|ehostunreach|network|proxy|dns|tls|ssl|certificate|socket|connect|sending request|connection/.test(text)) {
+    return { code: QUOTA_ERROR.NETWORK, message: "The network or proxy did not return quota data." };
+  }
+  if (/spawn|failed to start|exited with code/.test(text)) {
+    return { code: QUOTA_ERROR.COMPONENT_START_FAILED, message: "The local Codex component could not start correctly." };
+  }
+  if (/rate-limit snapshot|invalid|parse|protocol|response/.test(text)) {
+    return { code: QUOTA_ERROR.SERVICE, message: "The quota service returned an unexpected response." };
+  }
+  return { code: QUOTA_ERROR.UNKNOWN, message: "Quota reading failed for an unknown reason." };
 }
 
 function firstSnapshot(map) {
@@ -197,4 +236,4 @@ function handleMessage(line, pending) {
   }
 }
 
-module.exports = { getQuota, normalizeSnapshot };
+module.exports = { getQuota, normalizeSnapshot, diagnoseQuotaError, QUOTA_ERROR };

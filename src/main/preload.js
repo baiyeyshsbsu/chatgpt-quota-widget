@@ -22,5 +22,7 @@ contextBridge.exposeInMainWorld("chatgptQuota", {
   bindAccount: (id) => ipcRenderer.invoke("store:bindAccount", id),
   saveReading: (id) => ipcRenderer.invoke("store:saveReading", id),
   setResetCount: (id, n) => ipcRenderer.invoke("store:setResetCount", id, n),
+  setManualRemainingPercent: (id, value) =>
+    ipcRenderer.invoke("store:setManualRemainingPercent", id, value),
   setView: (v) => ipcRenderer.invoke("window:view:set", v)
 });

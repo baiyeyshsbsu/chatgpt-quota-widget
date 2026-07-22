@@ -93,10 +93,24 @@ function getActiveAccount() {
   return toPublicAccount(s.accounts.find((a) => a.id === s.activeAccountId) || null);
 }
 /* ---------------- account CRUD ---------------- */
-function applySnapshot(acc, snapshot) {
+function applySnapshot(acc, snapshot, options = {}) {
   if (!snapshot) return;
+  const manualPercent = Number(acc.manualRemainingPercent);
+  const manualDeadline = acc.manualUntilResetsAt ? new Date(acc.manualUntilResetsAt).getTime() : null;
+  const sameWindow = !acc.manualUntilResetsAt || snapshot.resetsAt === acc.manualUntilResetsAt;
+  const manualActive =
+    Number.isFinite(manualPercent) &&
+    sameWindow &&
+    (!Number.isFinite(manualDeadline) || manualDeadline > Date.now());
   acc.planType = snapshot.planType ?? acc.planType;
-  acc.remainingPercent = snapshot.remainingPercent ?? acc.remainingPercent;
+  if (!manualActive || options.forceRemaining) {
+    acc.remainingPercent = snapshot.remainingPercent ?? acc.remainingPercent;
+    delete acc.manualRemainingPercent;
+    delete acc.manualUntilResetsAt;
+    delete acc.manualAdjustedAt;
+  } else {
+    acc.remainingPercent = manualPercent;
+  }
   acc.resetsAt = snapshot.resetsAt ?? acc.resetsAt;
   acc.fetchedAt = snapshot.fetchedAt ?? acc.fetchedAt;
   acc.lastRefreshedAt = new Date().toISOString();
@@ -109,7 +123,7 @@ function addAccount(label, identity, snapshot) {
   if (existing) {
     existing.label = (label && String(label).trim()) || existing.label;
     existing.accountHint = identity.hint || existing.accountHint;
-    applySnapshot(existing, snapshot);
+    applySnapshot(existing, snapshot, { forceRemaining: true });
     s.activeAccountId = existing.id;
     saveStore();
     return toPublicAccount(existing);
@@ -126,7 +140,7 @@ function addAccount(label, identity, snapshot) {
   };
   account.accountKey = identity.key;
   account.accountHint = identity.hint || "";
-  applySnapshot(account, snapshot);
+  applySnapshot(account, snapshot, { forceRemaining: true });
   s.accounts.push(account);
   s.activeAccountId = account.id;
   saveStore();
@@ -142,7 +156,7 @@ function bindAccount(id, identity, snapshot) {
   if (!acc) throw new Error("账号不存在");
   acc.accountKey = identity.key;
   acc.accountHint = identity.hint || "";
-  applySnapshot(acc, snapshot);
+  applySnapshot(acc, snapshot, { forceRemaining: true });
   s.activeAccountId = acc.id;
   saveStore();
   return toPublicAccount(acc);
@@ -203,6 +217,23 @@ function setResetCount(id, n) {
   return toPublicAccount(acc);
 }
 
+function setManualRemainingPercent(id, value) {
+  const s = getState();
+  const acc = s.accounts.find((a) => a.id === id);
+  if (!acc) throw new Error("账号不存在");
+  const percent = Number(value);
+  if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+    throw new Error("额度必须是 0 到 100 之间的数字");
+  }
+  acc.remainingPercent = Math.round(percent);
+  acc.manualRemainingPercent = acc.remainingPercent;
+  acc.manualUntilResetsAt = acc.resetsAt || null;
+  acc.manualAdjustedAt = new Date().toISOString();
+  acc.lastRefreshedAt = acc.manualAdjustedAt;
+  saveStore();
+  return toPublicAccount(acc);
+}
+
 module.exports = {
   getStore,
   getAccounts,
@@ -213,5 +244,6 @@ module.exports = {
   removeAccount,
   setActiveAccount,
   updateAccountReading,
-  setResetCount
+  setResetCount,
+  setManualRemainingPercent
 };

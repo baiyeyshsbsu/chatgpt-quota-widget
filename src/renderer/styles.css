@@ -459,6 +459,8 @@ body[data-view="accounts"] #accountsBtn { order: -1; }
   line-height: 1;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.5px;
+  cursor: pointer;
+  user-select: none;
 }
 .account-reset {
   display: flex;
