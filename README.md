@@ -41,5 +41,5 @@ npm run build
 ## 项目信息
 
 - 维护者：`baiyeyshsbsu`
-- 仓库：<https://github.com/baiyeyshsbsu/chatgpt-led-widget>
-- 许可：CC0 1.0 Universal（见 `LICENSE`）
+- 仓库：<https://github.com/baiyeyshsbsu/chatgpt-quota-widget>
+- 许可：MIT（见 `LICENSE`）

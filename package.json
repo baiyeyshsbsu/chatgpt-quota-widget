@@ -4,7 +4,7 @@
   "description": "Windows desktop LED widget for showing local ChatGPT (desktop) usage quota.",
   "main": "src/main/main.js",
   "author": "baiyeyshsbsu",
-  "license": "CC0-1.0",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "dev": "electron .",
