@@ -8,7 +8,7 @@ const path = require("node:path");
 const { app } = require("electron");
 const { randomUUID } = require("node:crypto");
 
-const DEFAULTS = { version: 3, activeAccountId: null, accounts: [] };
+const DEFAULTS = { version: 4, activeAccountId: null, selectedSub2apiAccountId: null, accounts: [] };
 
 let state = null;
 let storePath = null;
@@ -43,8 +43,10 @@ function loadStore() {
 
   if (legacy) legacyStorePathToRemove = legacyPath;
   return {
-    version: 3,
+    version: 4,
     activeAccountId: current?.activeAccountId || legacy?.activeAccountId || null,
+    selectedSub2apiAccountId:
+      current?.selectedSub2apiAccountId || legacy?.selectedSub2apiAccountId || null,
     accounts: mergedAccounts
   };
 }
@@ -54,6 +56,8 @@ function readStore(filePath) {
     const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
     return {
       activeAccountId: parsed && parsed.activeAccountId ? parsed.activeAccountId : null,
+      selectedSub2apiAccountId:
+        parsed && parsed.selectedSub2apiAccountId ? String(parsed.selectedSub2apiAccountId) : null,
       accounts: Array.isArray(parsed && parsed.accounts) ? parsed.accounts : []
     };
   } catch {
@@ -92,26 +96,42 @@ function getActiveAccount() {
   const s = getState();
   return toPublicAccount(s.accounts.find((a) => a.id === s.activeAccountId) || null);
 }
+function getSelectedSub2apiAccountId() {
+  return getState().selectedSub2apiAccountId || null;
+}
+function setSelectedSub2apiAccountId(id) {
+  const value = id == null ? null : String(id);
+  getState().selectedSub2apiAccountId = value;
+  saveStore();
+  return value;
+}
 /* ---------------- account CRUD ---------------- */
 function applySnapshot(acc, snapshot, options = {}) {
   if (!snapshot) return;
   const manualPercent = Number(acc.manualRemainingPercent);
   const manualDeadline = acc.manualUntilResetsAt ? new Date(acc.manualUntilResetsAt).getTime() : null;
   const sameWindow = !acc.manualUntilResetsAt || snapshot.resetsAt === acc.manualUntilResetsAt;
+  const bulkResetActive =
+    acc.manualAdjustmentReason === "bulk-reset" &&
+    Number.isFinite(manualDeadline) &&
+    manualDeadline > Date.now();
   const manualActive =
     Number.isFinite(manualPercent) &&
-    sameWindow &&
-    (!Number.isFinite(manualDeadline) || manualDeadline > Date.now());
+    (bulkResetActive ||
+      (sameWindow && (!Number.isFinite(manualDeadline) || manualDeadline > Date.now())));
   acc.planType = snapshot.planType ?? acc.planType;
   if (!manualActive || options.forceRemaining) {
     acc.remainingPercent = snapshot.remainingPercent ?? acc.remainingPercent;
     delete acc.manualRemainingPercent;
     delete acc.manualUntilResetsAt;
     delete acc.manualAdjustedAt;
+    delete acc.manualAdjustmentReason;
   } else {
     acc.remainingPercent = manualPercent;
   }
-  acc.resetsAt = snapshot.resetsAt ?? acc.resetsAt;
+  if (!bulkResetActive || options.forceRemaining) {
+    acc.resetsAt = snapshot.resetsAt ?? acc.resetsAt;
+  }
   acc.fetchedAt = snapshot.fetchedAt ?? acc.fetchedAt;
   acc.lastRefreshedAt = new Date().toISOString();
 }
@@ -217,6 +237,30 @@ function setResetCount(id, n) {
   return toPublicAccount(acc);
 }
 
+function resetAllAccountQuotas(now = new Date()) {
+  const s = getState();
+  const resetAt = new Date(now);
+  if (Number.isNaN(resetAt.getTime())) throw new Error("重置时间无效");
+
+  const adjustedAt = resetAt.toISOString();
+  const resetsAt = new Date(resetAt.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  for (const acc of s.accounts) {
+    acc.remainingPercent = 100;
+    acc.resetsAt = resetsAt;
+    acc.manualRemainingPercent = 100;
+    acc.manualUntilResetsAt = resetsAt;
+    acc.manualAdjustedAt = adjustedAt;
+    acc.manualAdjustmentReason = "bulk-reset";
+    acc.lastRefreshedAt = adjustedAt;
+  }
+  saveStore();
+  return {
+    count: s.accounts.length,
+    resetsAt,
+    accounts: s.accounts.map(toPublicAccount)
+  };
+}
+
 function setManualRemainingPercent(id, value) {
   const s = getState();
   const acc = s.accounts.find((a) => a.id === id);
@@ -229,6 +273,7 @@ function setManualRemainingPercent(id, value) {
   acc.manualRemainingPercent = acc.remainingPercent;
   acc.manualUntilResetsAt = acc.resetsAt || null;
   acc.manualAdjustedAt = new Date().toISOString();
+  delete acc.manualAdjustmentReason;
   acc.lastRefreshedAt = acc.manualAdjustedAt;
   saveStore();
   return toPublicAccount(acc);
@@ -238,6 +283,8 @@ module.exports = {
   getStore,
   getAccounts,
   getActiveAccount,
+  getSelectedSub2apiAccountId,
+  setSelectedSub2apiAccountId,
   addAccount,
   bindAccount,
   observeAccount,
@@ -245,5 +292,6 @@ module.exports = {
   setActiveAccount,
   updateAccountReading,
   setResetCount,
+  resetAllAccountQuotas,
   setManualRemainingPercent
 };

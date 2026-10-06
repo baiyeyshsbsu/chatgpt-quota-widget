@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "electron .",
     "start": "electron .",
+    "test": "node --test",
     "build": "set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --win portable",
     "build:dir": "set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --dir"
   },
@@ -20,9 +21,11 @@
     },
     "files": [
       "src/**/*",
+      "assets/**/*",
       "package.json"
     ],
     "win": {
+      "icon": "assets/app-icon.ico",
       "signAndEditExecutable": false,
       "target": [
         {

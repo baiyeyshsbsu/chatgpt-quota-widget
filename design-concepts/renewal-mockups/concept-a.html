@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>方案A · 标签抽屉 + 轨道信标</title>
+<style>
+  :root{
+    --green:#19a58c; --yellow:#d89016; --red:#df4b57; --blue:#3478f6; --cyan:#38c7e8;
+    --text:#172033; --text-soft:#58657a; --text-dim:#8994a6;
+    --border:rgba(72,93,126,.16); --shadow:rgba(38,61,96,.22);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    min-height:100%;
+    padding:34px 38px 46px;
+    font-family:"Segoe UI Variable","Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    color:#eaf1fb;
+    background:
+      radial-gradient(900px 520px at 12% 8%, rgba(84,140,255,.32), transparent 62%),
+      radial-gradient(760px 620px at 88% 82%, rgba(24,190,175,.22), transparent 60%),
+      linear-gradient(140deg,#1b2233 0%,#26314a 46%,#141a28 100%);
+  }
+  h1{font-size:21px;font-weight:700;letter-spacing:.2px}
+  .sub{margin:6px 0 26px;color:#a9bad4;font-size:12.5px}
+  .board{display:flex;gap:34px;align-items:flex-start;flex-wrap:wrap}
+  figure{display:flex;flex-direction:column;gap:12px}
+  figcaption{font-size:12px;color:#9fb2cd;font-weight:600;letter-spacing:.3px}
+  figcaption b{color:#dbe7f8;font-weight:700}
+
+  /* ---------- 88px rail ---------- */
+  .rail{
+    position:relative;width:88px;height:620px;display:flex;flex-direction:column;
+    align-items:center;padding:0 0 150px;
+    border:1px solid rgba(255,255,255,.86);border-radius:28px;
+    background:linear-gradient(145deg,rgba(255,255,255,.95),rgba(241,246,252,.88)),rgba(247,249,252,.9);
+    box-shadow:0 18px 48px var(--shadow), inset 0 0 0 1px rgba(96,119,150,.08);
+    overflow:hidden;
+  }
+  .rail .rt{display:flex;align-items:center;justify-content:space-between;width:100%;padding:13px 10px 6px}
+  .mark{width:22px;height:23px;display:flex;align-items:flex-end;gap:2px}
+  .mark i{width:4px;border-radius:4px 4px 2px 2px}
+  .mark i:nth-child(1){height:9px;background:linear-gradient(180deg,#50d6b5,#19a58c)}
+  .mark i:nth-child(2){height:16px;background:linear-gradient(180deg,#54d4ed,#2faee4)}
+  .mark i:nth-child(3){height:22px;background:linear-gradient(180deg,#5ed7ee,#3478f6)}
+  .x{width:22px;height:22px;border:0;background:none;color:#98a4b8;font-size:15px;line-height:1;cursor:pointer}
+  .pct{margin-top:6px;color:#10214a;font-size:30px;font-weight:720;letter-spacing:-1.5px;font-variant-numeric:tabular-nums}
+  .gauge{position:relative;width:40px;flex:1;margin:14px 0 10px}
+  .track{position:absolute;top:0;bottom:0;left:7px;width:26px;border:1px solid rgba(92,112,143,.12);
+    border-radius:16px;background:#e2e8f0;box-shadow:inset 0 2px 7px rgba(38,61,96,.12);overflow:hidden}
+  .fill{position:absolute;left:0;right:0;bottom:0;height:68%;border-radius:14px;
+    background:linear-gradient(180deg,var(--blue),var(--cyan));box-shadow:inset 0 1px 1px rgba(255,255,255,.4)}
+  .fill.warn{background:linear-gradient(180deg,#f4b740,#ffd56b)}
+  .reset{color:var(--text);font-size:9px;letter-spacing:-.35px;white-space:nowrap;opacity:.75}
+  .switch{position:absolute;left:10px;right:10px;bottom:68px;display:grid;grid-template-columns:1fr 1fr;gap:2px;
+    padding:2px;border:1px solid var(--border);border-radius:10px;background:rgba(232,239,248,.94);
+    box-shadow:0 4px 12px rgba(38,61,96,.12)}
+  .switch button{height:25px;border:0;border-radius:7px;background:transparent;color:var(--text-dim);font-size:10px;font-weight:650}
+  .switch button.on{background:var(--blue);color:#fff}
+  .acct{position:absolute;left:21px;bottom:16px;width:46px;height:42px;display:grid;place-items:center;
+    border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,.68);color:var(--blue);cursor:pointer}
+  .acct svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+
+  /* 轨道信标 */
+  .beacon{
+    position:absolute;left:9px;right:9px;bottom:104px;height:34px;
+    display:flex;align-items:center;justify-content:center;gap:5px;
+    border:1px solid rgba(72,93,126,.18);border-radius:12px;
+    background:rgba(236,242,250,.92);color:var(--text-soft);
+    font-size:10px;font-weight:700;letter-spacing:-.2px;
+  }
+  .beacon svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  .beacon.ok{color:#5b6c86}
+  .beacon.due{
+    color:#fff;border-color:transparent;background:linear-gradient(135deg,#e34f5f,#c9333f);
+    box-shadow:0 6px 16px rgba(223,75,87,.4);animation:throb 1.15s ease-in-out infinite;
+  }
+  .beacon.due::before{
+    content:"";position:absolute;inset:-6px;border-radius:18px;border:2px solid rgba(223,75,87,.55);
+    animation:ring 1.4s ease-out infinite;
+  }
+  .rail.alert{border-color:rgba(223,75,87,.7);box-shadow:0 18px 48px var(--shadow),0 0 0 3px rgba(223,75,87,.22)}
+  .rail.alert .fill{background:linear-gradient(180deg,#e34f5f,#ff7b83)}
+  @keyframes throb{0%,100%{filter:brightness(1)}50%{filter:brightness(1.22)}}
+  @keyframes ring{0%{opacity:.9;transform:scale(.86)}100%{opacity:0;transform:scale(1.16)}}
+
+  /* ---------- 390px drawer ---------- */
+  .drawer{
+    width:390px;min-height:620px;display:flex;flex-direction:column;gap:9px;
+    padding:16px 16px 14px;border:1px solid rgba(255,255,255,.86);border-radius:28px;
+    background:linear-gradient(145deg,rgba(255,255,255,.95),rgba(241,246,252,.9)),rgba(247,249,252,.92);
+    box-shadow:0 18px 48px var(--shadow);color:var(--text);
+  }
+  .combined{display:flex}
+  .combined .drawer{border-top-left-radius:0;border-bottom-left-radius:0;border-left:0;
+    box-shadow:0 18px 48px var(--shadow)}
+  .combined .rail{border-top-right-radius:0;border-bottom-right-radius:0}
+  .tabs{display:flex;align-items:center;gap:4px;padding:3px;border:1px solid var(--border);border-radius:11px;background:rgba(226,232,240,.6)}
+  .tab{flex:1;height:30px;border:0;border-radius:8px;background:transparent;color:var(--text-dim);font-size:12px;font-weight:650;cursor:pointer}
+  .tab.on{background:#fff;color:var(--blue);box-shadow:0 1px 4px rgba(38,61,96,.14);font-weight:700}
+  .add{width:34px;height:30px;flex:none;border:1px solid rgba(52,120,246,.24);border-radius:8px;background:rgba(52,120,246,.08);color:var(--blue);font-size:16px;line-height:1;cursor:pointer}
+  .stat{display:flex;justify-content:space-between;align-items:center;padding:0 3px;color:var(--text-dim);font-size:10.5px;font-weight:600}
+  .stat b{color:var(--text-soft);font-weight:700}
+  .group{color:var(--text-dim);font-size:10px;font-weight:700;letter-spacing:.6px;padding:4px 3px 0}
+  .card{display:flex;flex-direction:column;gap:8px;padding:11px 12px;border:1px solid var(--border);border-radius:13px;background:rgba(255,255,255,.62)}
+  .card.due{border-color:rgba(223,75,87,.45);background:rgba(223,75,87,.06)}
+  .card.exp{border-color:rgba(223,75,87,.7);background:rgba(223,75,87,.11)}
+  .r1{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .nm{font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pill{flex:none;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:750;font-variant-numeric:tabular-nums}
+  .pill.ok{background:rgba(25,165,140,.13);color:#12836f}
+  .pill.warn{background:rgba(216,144,22,.15);color:#a4680b}
+  .pill.bad{background:rgba(223,75,87,.16);color:#c4303d}
+  .bar{height:5px;border-radius:999px;background:#dfe6ef;overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--blue),var(--cyan))}
+  .due .bar i,.exp .bar i{background:linear-gradient(90deg,#e34f5f,#ff8a92)}
+  .meta{display:flex;gap:8px;color:var(--text-dim);font-size:10.5px;font-variant-numeric:tabular-nums}
+  .meta span::before{content:"·";margin-right:7px;color:#b9c4d3}
+  .meta span:first-child::before{display:none}
+  .acts{display:flex;gap:6px;padding-top:8px;border-top:1px solid var(--border)}
+  .btn{height:28px;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,.7);
+    color:var(--text-soft);font-size:11px;cursor:pointer;white-space:nowrap}
+  .btn.pri{color:#fff;border-color:transparent;background:linear-gradient(135deg,#e34f5f,#cf3543);font-weight:700;box-shadow:0 3px 9px rgba(223,75,87,.3)}
+  .btn.blue{color:var(--blue);border-color:rgba(52,120,246,.24);background:rgba(52,120,246,.08);font-weight:650}
+  .btn.ghost{border-color:transparent;background:none}
+  .push{margin-left:auto}
+  .form{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:11px;border:1px dashed rgba(72,93,126,.3);border-radius:13px;background:rgba(255,255,255,.4)}
+  .form .f{grid-column:1/-1;color:var(--text-dim);font-size:10px;font-weight:700;letter-spacing:.5px}
+  .form input,.form select{height:31px;padding:0 9px;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,.8);font-size:11px;color:var(--text)}
+  .form .full{grid-column:1/-1}
+
+  /* ---------- 弹层提醒 ---------- */
+  .sheet{width:390px;border:1px solid rgba(255,255,255,.86);border-radius:22px;overflow:hidden;
+    background:linear-gradient(145deg,rgba(255,255,255,.97),rgba(244,248,253,.94));box-shadow:0 22px 54px rgba(18,28,48,.4);color:var(--text)}
+  .sheet .hd{display:flex;gap:11px;align-items:center;padding:15px 16px;background:linear-gradient(135deg,#e34f5f,#c8323e);color:#fff}
+  .sheet .ico{width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:11px;background:rgba(255,255,255,.2)}
+  .sheet .ico svg{width:19px;height:19px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .sheet .hd b{display:block;font-size:14px;font-weight:750}
+  .sheet .hd span{display:block;margin-top:2px;font-size:11px;opacity:.9}
+  .sheet .bd{padding:14px 16px 4px;display:flex;flex-direction:column;gap:11px}
+  .line{display:flex;justify-content:space-between;font-size:11.5px;color:var(--text-soft)}
+  .line b{color:var(--text);font-weight:700;font-variant-numeric:tabular-nums}
+  .sheet .ft{display:flex;gap:7px;padding:12px 16px 15px;border-top:1px solid var(--border);background:rgba(246,250,254,.7)}
+  .sheet .ft .btn{height:32px;flex:1;font-size:11.5px}
+  .note{margin:0 16px 15px;color:var(--text-dim);font-size:10px;text-align:center}
+</style>
+</head>
+<body>
+  <h1>方案 A · 标签抽屉 + 轨道信标（最小改版）</h1>
+  <p class="sub">主界面结构完全保留，只在轨道底部 7d/5h 开关上方插入一枚「续费信标」；抽屉顶部加一排标签页，续费清单作为第二个 Tab。到期时用信标爆红 + 卡片弹层提醒。</p>
+
+  <div class="board">
+
+    <figure>
+      <div class="rail">
+        <div class="rt"><span class="mark"><i></i><i></i><i></i></span><button class="x">✕</button></div>
+        <div class="pct">68%</div>
+        <div class="gauge"><div class="track"><div class="fill" style="height:68%"></div></div></div>
+        <div class="reset">2天04:12</div>
+        <div class="beacon ok">
+          <svg viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.2-2.9 7.4-7 9-4.1-1.6-7-4.8-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+          12d
+        </div>
+        <div class="switch"><button class="on">7d</button><button>5h</button></div>
+        <button class="acct"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 8a7 7 0 0 1 14 0"/></svg></button>
+      </div>
+      <figcaption><b>A1</b> 轨道·常态 — 距最近到期 &gt;3 天，信标静默为灰蓝</figcaption>
+    </figure>
+
+    <figure>
+      <div class="rail alert">
+        <div class="rt"><span class="mark"><i></i><i></i><i></i></span><button class="x">✕</button></div>
+        <div class="pct">21%</div>
+        <div class="gauge"><div class="track"><div class="fill warn" style="height:21%"></div></div></div>
+        <div class="reset">0天05:40</div>
+        <div class="beacon due">
+          <svg viewBox="0 0 24 24"><path d="M12 4a7 7 0 0 1 7 7v4l1.5 2.5H3.5L5 15v-4a7 7 0 0 1 7-7z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
+          剩 3 天
+        </div>
+        <div class="switch"><button class="on">7d</button><button>5h</button></div>
+        <button class="acct"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 8a7 7 0 0 1 14 0"/></svg></button>
+      </div>
+      <figcaption><b>A2</b> 轨道·临期 ≤3 天 — 信标转红并脉冲，整机描边泛红</figcaption>
+    </figure>
+
+    <figure>
+      <div class="combined">
+        <div class="rail">
+          <div class="rt"><span class="mark"><i></i><i></i><i></i></span></div>
+          <div class="pct">68%</div>
+          <div class="gauge"><div class="track"><div class="fill" style="height:68%"></div></div></div>
+          <div class="beacon due" style="bottom:104px">剩 3 天</div>
+          <div class="switch"><button class="on">7d</button><button>5h</button></div>
+          <button class="acct"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 8a7 7 0 0 1 14 0"/></svg></button>
+        </div>
+        <div class="drawer">
+          <div class="tabs">
+            <button class="tab">账号</button>
+            <button class="tab on">续费提醒</button>
+            <button class="add">+</button>
+          </div>
+          <div class="stat"><span>共 4 项 · 本月到期 <b>2 项</b></span><span>月支出 <b>¥196</b></span></div>
+
+          <div class="group">需要处理</div>
+          <div class="card exp">
+            <div class="r1"><span class="nm">中转站 Sub2API 套餐</span><span class="pill bad">已过期 2 天</span></div>
+            <div class="bar"><i style="width:100%"></i></div>
+            <div class="meta"><span>到期 2026-10-04</span><span>¥68/月</span><span>周期 30 天</span></div>
+            <div class="acts">
+              <button class="btn pri">已续费 · 顺延 30 天</button>
+              <button class="btn">打开付款页</button>
+              <button class="btn ghost push">编辑</button>
+            </div>
+          </div>
+          <div class="card due">
+            <div class="r1"><span class="nm">ChatGPT Plus</span><span class="pill bad">剩 3 天</span></div>
+            <div class="bar"><i style="width:90%"></i></div>
+            <div class="meta"><span>到期 2026-10-09</span><span>¥128/月</span><span>周期 30 天</span></div>
+            <div class="acts">
+              <button class="btn pri">已续费 · 顺延 30 天</button>
+              <button class="btn">顺延 7 天</button>
+              <button class="btn ghost push">编辑</button>
+            </div>
+          </div>
+
+          <div class="group">正常</div>
+          <div class="card">
+            <div class="r1"><span class="nm">云服务器 VPS</span><span class="pill ok">剩 24 天</span></div>
+            <div class="bar"><i style="width:20%"></i></div>
+            <div class="meta"><span>到期 2026-10-30</span><span>¥45/月</span></div>
+            <div class="acts"><button class="btn blue">已续费</button><button class="btn ghost push">编辑</button></div>
+          </div>
+          <div class="card">
+            <div class="r1"><span class="nm">Codex Pro</span><span class="pill warn">剩 9 天</span></div>
+            <div class="bar"><i style="width:30%"></i></div>
+            <div class="meta"><span>到期 2026-10-15</span><span>手动充值</span></div>
+            <div class="acts"><button class="btn blue">已续费</button><button class="btn ghost push">编辑</button></div>
+          </div>
+
+          <div class="form" style="margin-top:2px">
+            <div class="f">快速添加</div>
+            <input value="ChatGPT Pro" placeholder="项目名称" />
+            <input value="2026-11-06" placeholder="到期日期" />
+            <select><option>每 30 天</option><option>每 7 天</option><option>每 90 天</option><option>每年</option></select>
+            <input value="¥168" placeholder="金额（可选）" />
+            <button class="btn blue full" style="height:31px">保存提醒</button>
+          </div>
+        </div>
+      </div>
+      <figcaption><b>A3</b> 抽屉·续费 Tab — 按「需要处理 / 正常」分组，一条按钮完成顺延</figcaption>
+    </figure>
+
+    <figure>
+      <div class="sheet">
+        <div class="hd">
+          <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 4a7 7 0 0 1 7 7v4l1.5 2.5H3.5L5 15v-4a7 7 0 0 1 7-7z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></div>
+          <div><b>2 项需要在 3 天内续费</b><span>今天 09:00 首次提醒 · 每天最多提醒一次</span></div>
+        </div>
+        <div class="bd">
+          <div class="card exp" style="border-radius:12px">
+            <div class="r1"><span class="nm">中转站 Sub2API 套餐</span><span class="pill bad">已过期 2 天</span></div>
+            <div class="meta"><span>到期 2026-10-04</span><span>¥68/月</span></div>
+          </div>
+          <div class="card due" style="border-radius:12px">
+            <div class="r1"><span class="nm">ChatGPT Plus</span><span class="pill bad">剩 3 天</span></div>
+            <div class="meta"><span>到期 2026-10-09</span><span>¥128/月</span></div>
+          </div>
+        </div>
+        <div class="ft">
+          <button class="btn pri">全部已续费</button>
+          <button class="btn">只顺延 ChatGPT Plus</button>
+        </div>
+        <p class="note">点击「已续费」即按各自周期顺延，并写入续费历史</p>
+      </div>
+      <figcaption><b>A4</b> 提醒弹层 — 覆盖在组件内，不新开窗口，不打断置顶轨道</figcaption>
+    </figure>
+
+  </div>
+</body>
+</html>

@@ -89,11 +89,17 @@ function firstSnapshot(map) {
 }
 
 function normalizeSnapshot(snapshot) {
-  // ChatGPT 桌面版（原 Codex）升级后只施加「一周（7 天）」额度限制，
-  // 旧 5 小时窗口已移除。API 把该窗口放在 snapshot.primary
-  // （windowDurationMins = 10080），snapshot.secondary 为 null。
-  const activeWindow =
-    normalizeWindow(snapshot.primary) || normalizeWindow(snapshot.secondary);
+  const primary = normalizeWindow(snapshot.primary);
+  const secondary = normalizeWindow(snapshot.secondary);
+  const windows = [primary, secondary].filter(Boolean);
+  const fiveHour =
+    windows.find((window) => window.windowDurationMins === 300) ||
+    (primary && secondary && primary.windowDurationMins == null ? primary : null);
+  const sevenDay =
+    windows.find((window) => (window.windowDurationMins ?? 0) >= 10080) ||
+    (primary && secondary && secondary.windowDurationMins == null ? secondary : null) ||
+    (windows.length === 1 && windows[0].windowDurationMins == null ? windows[0] : null);
+  const activeWindow = sevenDay || fiveHour;
 
   return {
     limitId: snapshot.limitId || "codex",
@@ -101,8 +107,10 @@ function normalizeSnapshot(snapshot) {
     planType: snapshot.planType || "unknown",
     reachedType: snapshot.rateLimitReachedType || null,
     credits: snapshot.credits || null,
-    primary: null,
-    secondary: null,
+    primary,
+    secondary,
+    fiveHour,
+    sevenDay,
     remainingPercent: activeWindow ? activeWindow.remainingPercent : null,
     usedPercent: activeWindow ? activeWindow.usedPercent : null,
     resetsAt: activeWindow ? activeWindow.resetsAt : null,

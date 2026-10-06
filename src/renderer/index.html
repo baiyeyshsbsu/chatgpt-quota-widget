@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ChatGPT LED Widget</title>
+    <title>ChatGPT Quota Rail</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body data-state="loading">
@@ -13,80 +13,114 @@
 
       <header class="titlebar">
         <div class="brand">
-          <span id="trafficLight" class="traffic-light loading" aria-hidden="true"></span>
+          <span class="quota-mark" aria-hidden="true">
+            <i></i><i></i><i></i>
+          </span>
           <div>
             <span id="brandName" class="brand-name">ChatGPT 额度</span>
             <span id="brandState" class="brand-state">读取中</span>
           </div>
         </div>
         <div class="window-actions">
-          <button id="langBtn" class="text-button" title="Language" aria-label="Language">EN</button>
-          <button id="accountsBtn" class="icon-button" title="账号管理" aria-label="账号管理">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path class="accounts-icon-manage" d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9 4-2 1 1 2-2 2-2-1-1 2h-2l-1-2-2 1-2-2 1-2-2-1v-2l2-1-1-2 2-2 2 1 1-2h2l1 2 2-1 2 2-1 2 2 1z" />
-              <path class="accounts-icon-back" d="M15 5l-7 7 7 7" />
-            </svg>
-          </button>
-          <button id="pinBtn" class="icon-button active" title="取消置顶" aria-label="取消置顶">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M14 4l6 6-3 1-4 4v4l-2 2-2-6-6-2 2-2h4l4-4 1-3z" />
-            </svg>
-          </button>
-          <button id="refreshBtn" class="icon-button" title="刷新" aria-label="刷新">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M20 12a8 8 0 0 1-13.7 5.7M4 12A8 8 0 0 1 17.7 6.3M17 3v4h-4M7 21v-4h4" />
-            </svg>
-          </button>
-          <button id="minimizeBtn" class="icon-button" title="隐藏" aria-label="隐藏">
-            <svg class="stroke-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 12h14" />
-            </svg>
-          </button>
-          <button id="closeBtn" class="icon-button danger" title="隐藏到托盘" aria-label="隐藏到托盘">
-            <svg class="stroke-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6 6l12 12M18 6 6 18" />
-            </svg>
-          </button>
+          <div class="top-actions">
+            <button id="closeBtn" class="icon-button danger" title="退出" aria-label="退出">
+              <svg class="stroke-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+            </button>
+          </div>
         </div>
       </header>
 
       <section class="content">
         <div id="liquidMeter" class="liquid-meter" aria-label="ChatGPT 剩余额度">
-          <div class="glass-rim"></div>
-          <div id="liquidFill" class="liquid-fill">
-            <div class="wave wave-one"></div>
-            <div class="wave wave-two"></div>
-          </div>
-          <div class="shine"></div>
           <div class="meter-copy">
             <strong id="remaining">--%</strong>
-            <span id="remainingLabel">剩余</span>
+            <span id="remainingLabel">7天剩余</span>
           </div>
+          <div class="rail-wrap" aria-hidden="true">
+            <div class="rail-track">
+              <div id="liquidFill" class="liquid-fill"></div>
+            </div>
+            <div class="rail-scale"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div>
+          </div>
+          <!-- id 保持不变，避免破坏现有额度渲染契约。 -->
         </div>
 
         <div class="quota-panel">
           <div class="quota-card">
-            <span id="secondaryLabel">一周</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3M17 3v3M4 9h16M5 5h14v15H5z" /></svg>
+            <span id="secondaryLabel">重置</span>
             <strong id="secondaryText">--</strong>
           </div>
           <div class="quota-card slim">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" /></svg>
             <span id="planLabel">套餐</span>
             <strong id="planText">--</strong>
           </div>
         </div>
       </section>
 
+      <button id="renewalBeacon" class="renewal-beacon" type="button" hidden title="续费提醒" aria-label="续费提醒">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a7 7 0 0 1 7 7v4l1.5 2.5H3.5L5 15v-4a7 7 0 0 1 7-7z" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>
+        <span id="renewalBeaconText">--</span>
+      </button>
+
+      <div class="compact-window-switch" role="radiogroup" aria-label="额度窗口">
+        <button id="compactSevenDayBtn" class="compact-window-option active" type="button" role="radio" aria-checked="true">7d</button>
+        <button id="compactFiveHourBtn" class="compact-window-option" type="button" role="radio" aria-checked="false">5h</button>
+      </div>
+
       <footer class="status">
         <span id="statusDot" class="status-dot loading"></span>
         <span id="statusText">正在读取 ChatGPT 额度...</span>
       </footer>
 
+      <nav class="quick-actions" aria-label="快捷操作">
+        <button id="accountsBtn" class="icon-button" title="账号管理" aria-label="账号管理">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path class="accounts-icon-manage" d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 8a7 7 0 0 1 14 0" />
+            <path class="accounts-icon-back" d="M15 5l-7 7 7 7" />
+          </svg>
+          <span id="accountsActionLabel">账号</span>
+        </button>
+      </nav>
+
       <section class="accounts-panel" id="accountsPanel" hidden>
+        <div class="panel-tabs" role="tablist" aria-label="个人主页分区">
+          <button id="accountsTabBtn" class="panel-tab active" type="button" role="tab" aria-selected="true">账号</button>
+          <button id="renewalsTabBtn" class="panel-tab" type="button" role="tab" aria-selected="false">续费提醒</button>
+        </div>
+        <div id="accountsTabPane" class="tab-pane">
         <div class="accounts-header">
-          <span id="accountsTitle">账户概览</span>
+          <span id="accountsTitle">个人主页</span>
           <div class="accounts-header-actions">
-            <button id="saveReadingBtn" class="text-button primary">识别并更新</button>
-            <button id="addAccountBtn" class="text-button">+ 账号</button>
+            <button id="forceRefreshAccountsBtn" class="text-button primary">强制刷新</button>
+          </div>
+        </div>
+        <div class="usage-mode-panel">
+          <span id="usageModeLabel">使用模式</span>
+          <div class="segmented-control" role="radiogroup" aria-labelledby="usageModeLabel">
+            <button id="personalModeBtn" class="mode-option" type="button" role="radio" aria-checked="true">个人使用</button>
+            <button id="relayModeBtn" class="mode-option" type="button" role="radio" aria-checked="false">中转站</button>
+          </div>
+        </div>
+        <div class="usage-mode-panel">
+          <span id="quotaWindowLabel">额度窗口</span>
+          <div class="segmented-control" role="radiogroup" aria-labelledby="quotaWindowLabel">
+            <button id="sevenDayWindowBtn" class="mode-option active" type="button" role="radio" aria-checked="true">7d 模式</button>
+            <button id="fiveHourWindowBtn" class="mode-option" type="button" role="radio" aria-checked="false">5h 模式</button>
+          </div>
+        </div>
+        <div id="sub2apiConnectionPanel" class="sub2api-connection">
+          <div class="connection-summary">
+            <span id="sub2apiConnectionStatus">尚未连接 Sub2API</span>
+            <button id="disconnectSub2apiBtn" class="text-button danger" hidden>断开</button>
+          </div>
+          <div id="sub2apiLoginForm" class="sub2api-login-form">
+            <input id="sub2apiUrlInput" type="url" value="http://127.0.0.1:18080" aria-label="Sub2API 地址" />
+            <input id="sub2apiEmailInput" type="email" autocomplete="username" placeholder="管理员邮箱" aria-label="管理员邮箱" />
+            <input id="sub2apiPasswordInput" type="password" autocomplete="current-password" placeholder="管理员密码" aria-label="管理员密码" />
+            <input id="sub2apiTotpInput" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="两步验证码（如已启用）" aria-label="两步验证码" hidden />
+            <button id="connectSub2apiBtn" class="text-button primary">连接</button>
           </div>
         </div>
         <div class="accounts-list" id="accountsList"><!-- 由 renderer.js 动态填充 --></div>
@@ -95,7 +129,64 @@
           <span id="accountsPageText">1 / 1</span>
           <button id="nextAccountsPageBtn" class="text-button" type="button">下一页</button>
         </div>
+        </div>
+
+        <div id="renewalsTabPane" class="tab-pane" hidden>
+          <div class="renewals-summary">
+            <span id="renewalsSummaryText">--</span>
+            <span id="renewalsMonthlyText">--</span>
+          </div>
+          <div class="renewals-list" id="renewalsList"><!-- 由 renderer.js 动态填充 --></div>
+          <div class="renewal-edit" id="renewalEditForm" hidden>
+            <span class="form-caption" id="renewalEditCaption">编辑续费提醒</span>
+            <input id="renewalEditNameInput" placeholder="项目名称" aria-label="项目名称" />
+            <input id="renewalEditDateInput" type="date" aria-label="到期日期" />
+            <label class="field"><span id="renewalEditCycleLabel">周期天数</span><input id="renewalEditCycleInput" type="number" min="1" max="3650" value="30" /></label>
+            <label class="field"><span id="renewalEditRemindLabel">提前提醒</span><input id="renewalEditRemindInput" type="number" min="0" max="60" value="3" /></label>
+            <input id="renewalEditAmountInput" placeholder="金额（可选）" aria-label="金额" />
+            <select id="renewalEditRenewFromSelect" aria-label="顺延起算方式">
+              <option value="today">从「今天」起算</option>
+              <option value="oldDeadline">从旧到期日起算</option>
+            </select>
+            <input id="renewalEditUrlInput" type="url" placeholder="付款页链接（可选）" aria-label="付款页链接" />
+            <label class="check"><input id="renewalEditMutedInput" type="checkbox" /><span id="renewalEditMutedLabel">暂停提醒</span></label>
+            <div class="form-actions">
+              <button id="renewalEditSaveBtn" class="text-button primary">保存</button>
+              <button id="renewalEditCancelBtn" class="text-button">取消</button>
+              <button id="renewalEditDeleteBtn" class="text-button danger">删除</button>
+            </div>
+          </div>
+          <div class="renewal-form" id="renewalForm">
+            <span class="form-caption" id="renewalFormCaption">快速添加</span>
+            <input id="renewalNameInput" placeholder="项目名称" aria-label="项目名称" />
+            <input id="renewalDateInput" type="date" aria-label="到期日期" />
+            <select id="renewalCycleSelect" aria-label="续费周期">
+              <option value="7">每 7 天</option>
+              <option value="30" selected>每 30 天</option>
+              <option value="90">每 90 天</option>
+              <option value="365">每年</option>
+            </select>
+            <input id="renewalAmountInput" placeholder="金额（可选）" aria-label="金额" />
+            <button id="renewalSaveBtn" class="text-button primary full">保存提醒</button>
+          </div>
+        </div>
       </section>
+
+      <div id="renewalAlertSheet" class="renewal-alert" hidden>
+        <div class="renewal-alert-head">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a7 7 0 0 1 7 7v4l1.5 2.5H3.5L5 15v-4a7 7 0 0 1 7-7z" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>
+          <div>
+            <strong id="renewalAlertTitle">--</strong>
+            <span id="renewalAlertSub">--</span>
+          </div>
+        </div>
+        <div class="renewal-alert-list" id="renewalAlertList"></div>
+        <div class="renewal-alert-actions">
+          <button id="renewalAlertRenewAllBtn" class="text-button solid-danger">全部已续费</button>
+          <button id="renewalAlertOpenBtn" class="text-button">查看清单</button>
+          <button id="renewalAlertSnoozeBtn" class="text-button">稍后 1 小时</button>
+        </div>
+      </div>
     </main>
 
     <div id="toast" class="toast" hidden></div>

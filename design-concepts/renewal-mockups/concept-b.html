@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>方案B · 轨道常驻订阅条 + 账单日历</title>
+<style>
+  :root{
+    --green:#19a58c; --yellow:#d89016; --red:#df4b57; --blue:#3478f6; --cyan:#38c7e8;
+    --text:#172033; --text-soft:#58657a; --text-dim:#8994a6;
+    --border:rgba(72,93,126,.16); --shadow:rgba(38,61,96,.22);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    padding:34px 38px 46px;
+    font-family:"Segoe UI Variable","Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    color:#eaf1fb;
+    background:
+      radial-gradient(900px 520px at 12% 8%, rgba(84,140,255,.32), transparent 62%),
+      radial-gradient(760px 620px at 88% 82%, rgba(24,190,175,.22), transparent 60%),
+      linear-gradient(140deg,#1b2233 0%,#26314a 46%,#141a28 100%);
+  }
+  h1{font-size:21px;font-weight:700}
+  .lead{margin:6px 0 26px;color:#a9bad4;font-size:12.5px;max-width:1180px;line-height:1.7}
+  .board{display:flex;gap:34px;align-items:flex-start;flex-wrap:wrap}
+  figure{display:flex;flex-direction:column;gap:12px}
+  figcaption{font-size:12px;color:#9fb2cd;font-weight:600}
+  figcaption b{color:#dbe7f8}
+
+  /* ---------- rail 重排版：额度 + 常驻订阅条 ---------- */
+  .rail{
+    position:relative;width:88px;height:660px;display:flex;flex-direction:column;align-items:center;
+    padding:0 10px 14px;border:1px solid rgba(255,255,255,.86);border-radius:26px;
+    background:linear-gradient(145deg,rgba(255,255,255,.95),rgba(241,246,252,.88)),rgba(247,249,252,.9);
+    box-shadow:0 18px 48px var(--shadow);overflow:hidden;
+  }
+  .rail .rt{display:flex;align-items:center;justify-content:space-between;width:100%;padding:13px 0 4px}
+  .mark{width:22px;height:23px;display:flex;align-items:flex-end;gap:2px}
+  .mark i{width:4px;border-radius:4px 4px 2px 2px}
+  .mark i:nth-child(1){height:9px;background:linear-gradient(180deg,#50d6b5,#19a58c)}
+  .mark i:nth-child(2){height:16px;background:linear-gradient(180deg,#54d4ed,#2faee4)}
+  .mark i:nth-child(3){height:22px;background:linear-gradient(180deg,#5ed7ee,#3478f6)}
+  .x{width:20px;height:20px;border:0;background:none;color:#98a4b8;font-size:14px;cursor:pointer}
+  .pct{margin-top:2px;color:#10214a;font-size:27px;font-weight:720;letter-spacing:-1.4px;font-variant-numeric:tabular-nums}
+  .lbl{color:var(--text-soft);font-size:8.5px;font-weight:650;margin-top:1px}
+  .gauge{position:relative;width:38px;height:230px;margin:10px 0 8px}
+  .track{position:absolute;inset:0;border:1px solid rgba(92,112,143,.12);border-radius:16px;background:#e2e8f0;
+    box-shadow:inset 0 2px 7px rgba(38,61,96,.12);overflow:hidden}
+  .fill{position:absolute;left:0;right:0;bottom:0;height:68%;border-radius:14px;background:linear-gradient(180deg,var(--blue),var(--cyan))}
+  .strip{width:100%;display:flex;flex-direction:column;gap:5px;padding:8px 7px 9px;
+    border:1px solid rgba(72,93,126,.14);border-radius:14px;background:rgba(255,255,255,.62)}
+  .strip .cap{display:flex;justify-content:space-between;align-items:center;color:var(--text-dim);font-size:8px;font-weight:750;letter-spacing:.5px}
+  .strip .cap b{color:var(--red);font-size:9px}
+  .chip{display:flex;flex-direction:column;gap:3px;padding:5px 6px;border-radius:9px;background:rgba(232,239,248,.86)}
+  .chip .cn{color:var(--text);font-size:8.5px;font-weight:700;letter-spacing:-.2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip .cd{display:flex;justify-content:space-between;align-items:center;font-size:8px;color:var(--text-dim);font-variant-numeric:tabular-nums}
+  .chip .dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+  .chip.warn .dot{background:var(--yellow)}
+  .chip.bad{background:rgba(223,75,87,.13);border:1px solid rgba(223,75,87,.34)}
+  .chip.bad .dot{background:var(--red);box-shadow:0 0 0 3px rgba(223,75,87,.2);animation:th 1s ease-in-out infinite}
+  .chip.bad .cn{color:#c4303d}
+  @keyframes th{0%,100%{opacity:1}50%{opacity:.35}}
+  .rail.alert{border-color:rgba(223,75,87,.62);box-shadow:0 18px 48px var(--shadow),0 0 0 3px rgba(223,75,87,.2)}
+  .rail.alert::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(180deg,rgba(223,75,87,.16),transparent 42%,rgba(223,75,87,.12));animation:wash 1.9s ease-in-out infinite}
+  @keyframes wash{0%,100%{opacity:.5}50%{opacity:1}}
+  .switch{margin-top:auto;width:100%;display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:2px;border:1px solid var(--border);
+    border-radius:10px;background:rgba(232,239,248,.94)}
+  .switch button{height:24px;border:0;border-radius:7px;background:transparent;color:var(--text-dim);font-size:10px;font-weight:650}
+  .switch button.on{background:var(--blue);color:#fff}
+  .rowbtns{display:flex;gap:4px;margin-top:8px}
+  .ib{width:32px;height:32px;display:grid;place-items:center;border:1px solid var(--border);border-radius:11px;background:rgba(255,255,255,.7);color:var(--text-soft);cursor:pointer}
+  .ib.blue{color:var(--blue);border-color:rgba(52,120,246,.26);background:rgba(52,120,246,.08)}
+  .ib svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.85;stroke-linecap:round;stroke-linejoin:round}
+
+  /* ---------- 抽屉：账单日历 ---------- */
+  .combined{display:flex}
+  .combined .rail{border-top-right-radius:0;border-bottom-right-radius:0}
+  .drawer{
+    width:390px;min-height:660px;display:flex;flex-direction:column;gap:9px;padding:16px;
+    border:1px solid rgba(255,255,255,.86);border-left:0;border-top-left-radius:0;border-bottom-left-radius:0;
+    background:linear-gradient(145deg,rgba(255,255,255,.95),rgba(241,246,252,.9)),rgba(247,249,252,.92);
+    box-shadow:0 18px 48px var(--shadow);color:var(--text);
+  }
+  .hd{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .hd h2{font-size:14px;font-weight:750}
+  .seg{flex:none;width:162px;display:grid;grid-template-columns:repeat(3,1fr);gap:2px;padding:2px;border:1px solid var(--border);border-radius:9px;background:rgba(226,232,240,.66)}
+  .seg button{height:26px;border:0;border-radius:7px;background:transparent;color:var(--text-dim);font-size:10.5px;font-weight:650}
+  .seg button.on{background:#fff;color:var(--blue);box-shadow:0 1px 4px rgba(38,61,96,.14)}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+  .kpi{padding:9px 10px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.6)}
+  .kpi span{display:block;color:var(--text-dim);font-size:9px;font-weight:650}
+  .kpi b{display:block;margin-top:3px;font-size:16px;font-weight:750;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+  .kpi.r b{color:var(--red)}
+  .timeline{padding:10px 0 8px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+  .axis,.lane{display:grid;grid-template-columns:80px 1fr;gap:8px;align-items:center}
+  .axis{color:var(--text-dim);font-size:8.5px;font-variant-numeric:tabular-nums}
+  .axis .ax{display:flex;justify-content:space-between}
+  .lane{height:22px;margin-top:5px}
+  .lane .nm{font-size:9.5px;font-weight:650;color:var(--text-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lane .area{position:relative;height:8px}
+  .lane .seg2{position:absolute;left:0;top:0;height:8px;border-radius:999px;background:linear-gradient(90deg,#9fb6d3,#c9dcf2)}
+  .lane .seg2.over{background:linear-gradient(90deg,#e34f5f,#ff8a92)}
+  .lane .mark2{position:absolute;top:-6px;width:2px;height:20px;border-radius:2px;background:var(--red)}
+  .lane .flag{position:absolute;top:-9px;font-size:8px;font-weight:750;color:var(--red);white-space:nowrap}
+  .item{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center;padding:10px 11px;
+    border:1px solid var(--border);border-radius:13px;background:rgba(255,255,255,.6)}
+  .item.due{border-color:rgba(223,75,87,.5);background:rgba(223,75,87,.07)}
+  .item .l{display:flex;align-items:center;gap:7px;min-width:0}
+  .item .nm2{font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .item .m2{grid-column:1/-1;display:flex;gap:8px;color:var(--text-dim);font-size:10px;font-variant-numeric:tabular-nums}
+  .item .m2 span::before{content:"·";margin-right:6px;color:#b9c4d3}
+  .item .m2 span:first-child::before{display:none}
+  .days{flex:none;font-size:15px;font-weight:750;letter-spacing:-.6px;font-variant-numeric:tabular-nums;color:var(--text-soft);text-align:right}
+  .days small{display:block;font-size:8.5px;font-weight:650;letter-spacing:0;color:var(--text-dim)}
+  .days.bad{color:var(--red)}
+  .days.ok{color:#12836f}
+  .renew{grid-column:2;justify-self:end;height:29px;padding:0 12px;border:1px solid transparent;border-radius:9px;
+    background:linear-gradient(135deg,#e34f5f,#cf3543);color:#fff;font-size:11px;font-weight:700;cursor:pointer;box-shadow:0 3px 9px rgba(223,75,87,.3)}
+  .renew.q{background:rgba(52,120,246,.09);border-color:rgba(52,120,246,.24);color:var(--blue);box-shadow:none;font-weight:650}
+  .plus{display:flex;align-items:center;justify-content:center;gap:6px;height:34px;border:1px dashed rgba(72,93,126,.36);
+    border-radius:12px;background:rgba(255,255,255,.4);color:var(--text-soft);font-size:11px;font-weight:650;cursor:pointer}
+
+  /* ---------- 托盘气泡 ---------- */
+  .tray-wrap{display:flex;flex-direction:column;gap:10px;align-items:flex-end}
+  .balloon{position:relative;width:330px;padding:14px 15px;border:1px solid rgba(223,75,87,.55);border-radius:16px;
+    background:linear-gradient(150deg,rgba(255,255,255,.98),rgba(252,242,244,.96));
+    box-shadow:0 20px 46px rgba(18,28,48,.42);color:var(--text)}
+  .balloon::after{content:"";position:absolute;right:26px;bottom:-8px;width:16px;height:16px;
+    background:rgba(252,242,244,.96);border-right:1px solid rgba(223,75,87,.55);border-bottom:1px solid rgba(223,75,87,.55);
+    transform:rotate(45deg)}
+  .balloon .bh{display:flex;gap:9px;align-items:center}
+  .balloon .bi{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:9px;background:rgba(223,75,87,.14)}
+  .balloon .bi svg{width:17px;height:17px;fill:none;stroke:var(--red);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .balloon b{font-size:13px}
+  .balloon p{margin-top:8px;color:var(--text-soft);font-size:11px;line-height:1.65}
+  .balloon .row{display:flex;gap:6px;margin-top:11px}
+  .balloon .btn{height:29px;padding:0 11px;border:1px solid var(--border);border-radius:9px;background:rgba(255,255,255,.75);
+    color:var(--text-soft);font-size:11px;cursor:pointer}
+  .balloon .btn.pri{color:#fff;border-color:transparent;background:linear-gradient(135deg,#e34f5f,#cf3543);font-weight:700}
+  .taskbar{display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:12px;background:rgba(255,255,255,.1);
+    border:1px solid rgba(255,255,255,.14)}
+  .taskbar .tk{width:22px;height:22px;border-radius:6px;background:rgba(255,255,255,.18)}
+  .taskbar .live{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:rgba(223,75,87,.24);
+    border:1px solid rgba(223,75,87,.7);color:#ff9aa3;font-size:10px;font-weight:800}
+</style>
+</head>
+<body>
+  <h1>方案 B · 轨道常驻订阅条 + 账单日历</h1>
+  <p class="lead">
+    真正「重新排版」的一版：轨道高度从 620 增加到 660，额度柱压缩到 230px，腾出的位置常驻订阅条 ——
+    最多显示 3 个到期项，每项一行「名称 + 剩余天数」，临期项直接红点闪烁，不用点开抽屉就能看到。
+    抽屉换成账单日历：顶部三个 KPI（月支出 / 30 天内到期 / 已过期），中间 30 天时间轴，下面每项一行右侧大字天数 + 一颗「已续费」按钮。
+    提醒走系统托盘气泡，鼠标移开也不丢。
+  </p>
+
+  <div class="board">
+    <figure>
+      <div class="rail">
+        <div class="rt"><span class="mark"><i></i><i></i><i></i></span><button class="x">✕</button></div>
+        <div class="pct">68%</div>
+        <div class="lbl">7天剩余</div>
+        <div class="gauge"><div class="track"><div class="fill" style="height:68%"></div></div></div>
+        <div class="strip">
+          <div class="cap"><span>续费提醒</span><b>2</b></div>
+          <div class="chip bad"><div class="cn">Sub2API</div><div class="cd"><span class="dot"></span><span>-2d</span></div></div>
+          <div class="chip bad"><div class="cn">Plus</div><div class="cd"><span class="dot"></span><span>3d</span></div></div>
+          <div class="chip warn"><div class="cn">Pro</div><div class="cd"><span class="dot"></span><span>9d</span></div></div>
+        </div>
+        <div class="switch"><button class="on">7d</button><button>5h</button></div>
+        <div class="rowbtns">
+          <button class="ib blue"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 8a7 7 0 0 1 14 0"/></svg></button>
+          <button class="ib"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.2-2.9 7.4-7 9-4.1-1.6-7-4.8-7-9V6z"/></svg></button>
+        </div>
+      </div>
+      <figcaption><b>B1</b> 轨道·重排版 — 订阅条常驻，红点即「该续费了」</figcaption>
+    </figure>
+
+    <figure>
+      <div class="rail alert">
+        <div class="rt"><span class="mark"><i></i><i></i><i></i></span><button class="x">✕</button></div>
+        <div class="pct">12%</div>
+        <div class="lbl">7天剩余</div>
+        <div class="gauge"><div class="track"><div class="fill" style="height:12%;background:linear-gradient(180deg,#e34f5f,#ff7b83)"></div></div></div>
+        <div class="strip">
+          <div class="cap"><span>续费提醒</span><b>3</b></div>
+          <div class="chip bad"><div class="cn">Sub2API</div><div class="cd"><span class="dot"></span><span>-2d</span></div></div>
+          <div class="chip bad"><div class="cn">Plus</div><div class="cd"><span class="dot"></span><span>1d</span></div></div>
+          <div class="chip bad"><div class="cn">VPS</div><div class="cd"><span class="dot"></span><span>3d</span></div></div>
+        </div>
+        <div class="switch"><button class="on">7d</button><button>5h</button></div>
+        <div class="rowbtns">
+          <button class="ib blue"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 8a7 7 0 0 1 14 0"/></svg></button>
+          <button class="ib" style="color:var(--red);border-color:rgba(223,75,87,.4)"><svg viewBox="0 0 24 24"><path d="M12 4a7 7 0 0 1 7 7v4l1.5 2.5H3.5L5 15v-4a7 7 0 0 1 7-7z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></button>
+        </div>
+      </div>
+      <figcaption><b>B2</b> 轨道·临期/过期 — 整机红色呼吸遮罩</figcaption>
+    </figure>
+
+    <figure>
+      <div class="combined">
+        <div class="rail">
+          <div class="rt"><span class="mark"><i></i><i></i><i></i></span></div>
+          <div class="pct">68%</div>
+          <div class="gauge"><div class="track"><div class="fill" style="height:68%"></div></div></div>
+          <div class="strip">
+            <div class="cap"><span>续费提醒</span><b>2</b></div>
+            <div class="chip bad"><div class="cn">Sub2API</div><div class="cd"><span class="dot"></span><span>-2d</span></div></div>
+            <div class="chip bad"><div class="cn">Plus</div><div class="cd"><span class="dot"></span><span>3d</span></div></div>
+          </div>
+          <div class="switch"><button class="on">7d</button><button>5h</button></div>
+          <div class="rowbtns">
+            <button class="ib blue"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 8a7 7 0 0 1 14 0"/></svg></button>
+          </div>
+        </div>
+        <div class="drawer">
+          <div class="hd"><h2>账单日历</h2><div class="seg"><button class="on">30 天</button><button>90 天</button><button>全部</button></div></div>
+          <div class="kpis">
+            <div class="kpi"><span>月支出</span><b>¥196</b></div>
+            <div class="kpi"><span>30 天内到期</span><b>4</b></div>
+            <div class="kpi r"><span>已过期</span><b>1</b></div>
+          </div>
+          <div class="timeline">
+            <div class="axis"><span></span><div class="ax"><span>今天</span><span>+7</span><span>+14</span><span>+21</span><span>+30</span></div></div>
+            <div class="lane"><span class="nm">Sub2API</span><div class="area"><div class="seg2 over" style="width:5%"></div><span class="flag" style="left:8%">已过期 -2d</span></div></div>
+            <div class="lane"><span class="nm">ChatGPT Plus</span><div class="area"><div class="seg2" style="width:10%"></div><span class="mark2" style="left:10%"></span><span class="flag" style="left:13%">3d</span></div></div>
+            <div class="lane"><span class="nm">Codex Pro</span><div class="area"><div class="seg2" style="width:30%"></div><span class="mark2" style="left:30%"></span><span class="flag" style="left:33%">9d</span></div></div>
+            <div class="lane"><span class="nm">云服务器 VPS</span><div class="area"><div class="seg2" style="width:80%"></div><span class="mark2" style="left:80%"></span><span class="flag" style="left:74%">24d</span></div></div>
+          </div>
+          <div class="item due">
+            <div class="l"><span class="nm2">中转站 Sub2API 套餐</span></div>
+            <div class="days bad">-2<small>天</small></div>
+            <div class="m2"><span>到期 10-04</span><span>¥68/月</span><span>周期 30 天</span></div>
+            <button class="renew">已续费 +30 天</button>
+          </div>
+          <div class="item due">
+            <div class="l"><span class="nm2">ChatGPT Plus</span></div>
+            <div class="days bad">3<small>天后</small></div>
+            <div class="m2"><span>到期 10-09</span><span>¥128/月</span><span>提前 3 天提醒</span></div>
+            <button class="renew">已续费 +30 天</button>
+          </div>
+          <div class="item">
+            <div class="l"><span class="nm2">Codex Pro</span></div>
+            <div class="days">9<small>天后</small></div>
+            <div class="m2"><span>到期 10-15</span><span>手动充值</span></div>
+            <button class="renew q">已续费</button>
+          </div>
+          <div class="item">
+            <div class="l"><span class="nm2">云服务器 VPS</span></div>
+            <div class="days ok">24<small>天后</small></div>
+            <div class="m2"><span>到期 10-30</span><span>¥45/月</span></div>
+            <button class="renew q">已续费</button>
+          </div>
+          <div class="plus">+ 添加续费提醒</div>
+        </div>
+      </div>
+      <figcaption><b>B3</b> 抽屉·账单日历 — KPI + 30 天时间轴 + 行内顺延</figcaption>
+    </figure>
+
+    <figure>
+      <div class="tray-wrap">
+        <div class="balloon">
+          <div class="bh">
+            <div class="bi"><svg viewBox="0 0 24 24"><path d="M12 4a7 7 0 0 1 7 7v4l1.5 2.5H3.5L5 15v-4a7 7 0 0 1 7-7z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></div>
+            <b>该续费了：2 项</b>
+          </div>
+          <p>中转站 Sub2API 套餐已过期 2 天；ChatGPT Plus 剩 3 天（10-09 到期，¥128）。续费后点一下即可顺延 30 天。</p>
+          <div class="row">
+            <button class="btn pri">全部顺延 30 天</button>
+            <button class="btn">打开组件</button>
+            <button class="btn">1 小时后再说</button>
+          </div>
+        </div>
+        <div class="taskbar"><span class="tk"></span><span class="tk"></span><span class="live">!</span><span class="tk"></span></div>
+      </div>
+      <figcaption><b>B4</b> 托盘气泡 — Windows 原生通知，托盘图标同步变红</figcaption>
+    </figure>
+  </div>
+</body>
+</html>
