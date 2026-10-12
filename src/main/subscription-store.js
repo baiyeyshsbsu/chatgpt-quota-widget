@@ -379,6 +379,9 @@ function createSubscriptionStore({ filePath, now = () => Date.now() } = {}) {
     }
     if (dirty) save();
     const state = summary();
+    // Most urgent first: smallest daysLeft wins (expired = most negative),
+    // so popups and balloons lead with the closest countdown.
+    alerts.sort((a, b) => (a.daysLeft ?? Infinity) - (b.daysLeft ?? Infinity));
     return { level: state.level, alerts, items: state.items, summary: state };
   }
 

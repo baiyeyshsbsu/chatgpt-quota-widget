@@ -198,6 +198,17 @@ test("scan fires once per throttle window, respects snooze and mute", (t) => {
   assert.equal(result.level, "due");
 });
 
+test("scan orders alerts by the nearest countdown, not creation order", (t) => {
+  const clock = makeClock(localDate(2026, 10, 6, 8));
+  const store = tempStore(t, clock);
+  // Created in the "wrong" order on purpose: the farther deadline comes first.
+  store.add({ name: "later", renewsAt: "2026-10-08" });
+  store.add({ name: "expired", renewsAt: "2026-10-04" });
+  store.add({ name: "soonest", renewsAt: "2026-10-07" });
+  const result = store.scan();
+  assert.deepEqual(result.alerts.map((item) => item.name), ["expired", "soonest", "later"]);
+});
+
 test("scan stays silent when reminders are disabled", (t) => {
   const clock = makeClock(localDate(2026, 10, 6, 8));
   const store = tempStore(t, clock);

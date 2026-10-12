@@ -929,11 +929,19 @@
       els.body.removeAttribute("data-alert");
       return;
     }
-    const attention = summary.items.filter((item) => item.status !== "ok" && !item.muted);
-    const focus = attention.length > 0 ? attention[0] : summary.items[0];
+    // The beacon always shows the most urgent countdown: among unmuted items
+    // pick the smallest daysLeft (expired = most negative wins); fall back to
+    // muted items only when everything is muted.
+    const rank = (item) => (item.daysLeft == null ? Number.POSITIVE_INFINITY : item.daysLeft);
+    const candidates = summary.items
+      .filter((item) => !item.muted)
+      .concat(summary.items.filter((item) => item.muted))
+      .slice()
+      .sort((a, b) => rank(a) - rank(b));
+    const focus = candidates[0];
     els.renewalBeacon.hidden = false;
-    els.renewalBeacon.classList.toggle("due", summary.level === "due");
-    els.renewalBeacon.classList.toggle("expired", summary.level === "expired");
+    els.renewalBeacon.classList.toggle("due", focus.status === "due");
+    els.renewalBeacon.classList.toggle("expired", focus.status === "expired");
     els.renewalBeaconText.textContent =
       focus.daysLeft == null
         ? STR[lang].renewalNoDate
