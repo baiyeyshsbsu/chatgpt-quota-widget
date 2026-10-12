@@ -71,8 +71,12 @@ function createWindow() {
     mainWindow.show();
     placeWindowRestored();
   });
-  let lastSeenPos = null;
-  let lastSavedAnchor = null;
+  let lastAnchor = (() => {
+    const saved = readPreferences().windowAnchor;
+    return saved && Number.isFinite(saved.right) && Number.isFinite(saved.y)
+      ? { right: Math.round(saved.right), y: Math.round(saved.y) }
+      : null;
+  })();
   let posWatchdog = null;
   // Electron's "moved" event is macOS-only; poll the position instead. The
   // anchor is always stored as the rail's right edge, whether the drawer is
@@ -80,16 +84,13 @@ function createWindow() {
   posWatchdog = setInterval(() => {
     if (!mainWindow || mainWindow.isDestroyed() || isAnimatingBounds) return;
     const { x, y, width } = mainWindow.getBounds();
-    const right = x + width - (width > RAIL_WIDTH ? ACCOUNTS_WIDTH - RAIL_WIDTH : 0);
-    const anchor = { right, y };
-    const same = lastSavedAnchor &&
-      lastSavedAnchor.right === anchor.right && lastSavedAnchor.y === anchor.y;
-    if (lastSeenPos && lastSeenPos.right === right && lastSeenPos.y === y && !same) {
-      lastSavedAnchor = anchor;
-      writePreferences({ windowAnchor: anchor });
-    }
-    lastSeenPos = anchor;
-    if (!same) lastSavedAnchor = anchor;
+    const anchor = {
+      right: x + width - (width > RAIL_WIDTH ? ACCOUNTS_WIDTH - RAIL_WIDTH : 0),
+      y
+    };
+    if (lastAnchor && lastAnchor.right === anchor.right && lastAnchor.y === anchor.y) return;
+    lastAnchor = anchor;
+    writePreferences({ windowAnchor: anchor });
   }, 2000);
   mainWindow.on("closed", () => {
     clearInterval(posWatchdog);
