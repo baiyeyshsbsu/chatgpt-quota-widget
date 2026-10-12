@@ -28,6 +28,7 @@ let accountsRefreshPromise = null;
 let accountsRefreshIsForce = false;
 let accountsRefreshTimer = null;
 let boundsAnimationToken = 0;
+let isAnimatingBounds = false;
 let subscriptionStore = null;
 let subscriptionScanTimer = null;
 let subscriptionFirstScanTimer = null;
@@ -68,9 +69,30 @@ function createWindow() {
   mainWindow.once("ready-to-show", () => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
     mainWindow.show();
-    placeWindowTopRight();
+    placeWindowRestored();
   });
+  let lastSeenPos = null;
+  let lastSavedAnchor = null;
+  let posWatchdog = null;
+  // Electron's "moved" event is macOS-only; poll the position instead. The
+  // anchor is always stored as the rail's right edge, whether the drawer is
+  // open or not, so view animations never look like a user drag.
+  posWatchdog = setInterval(() => {
+    if (!mainWindow || mainWindow.isDestroyed() || isAnimatingBounds) return;
+    const { x, y, width } = mainWindow.getBounds();
+    const right = x + width - (width > RAIL_WIDTH ? ACCOUNTS_WIDTH - RAIL_WIDTH : 0);
+    const anchor = { right, y };
+    const same = lastSavedAnchor &&
+      lastSavedAnchor.right === anchor.right && lastSavedAnchor.y === anchor.y;
+    if (lastSeenPos && lastSeenPos.right === right && lastSeenPos.y === y && !same) {
+      lastSavedAnchor = anchor;
+      writePreferences({ windowAnchor: anchor });
+    }
+    lastSeenPos = anchor;
+    if (!same) lastSavedAnchor = anchor;
+  }, 2000);
   mainWindow.on("closed", () => {
+    clearInterval(posWatchdog);
     mainWindow = null;
   });
   mainWindow.webContents.on("render-process-gone", (_event, details) => {
@@ -85,29 +107,61 @@ function createWindow() {
   return mainWindow;
 }
 
-function placeWindowTopRight() {
-  if (!mainWindow) return;
+function topRightBounds(width, height) {
   const display = screen.getPrimaryDisplay();
-  const { width, height } = mainWindow.getBounds();
   const { workArea } = display;
-  mainWindow.setBounds({
+  return {
     x: workArea.x + workArea.width - width - 24,
     y: workArea.y + 24,
     width,
     height
-  });
+  };
+}
+
+/**
+ * Anchored bounds honour the position the user dragged the rail to
+ * (persisted as the rail's right edge + top). Falls back to the top-right
+ * corner when nothing was saved or the anchor no longer lands on a screen.
+ */
+function anchoredBounds(width, height) {
+  const anchor = readPreferences().windowAnchor;
+  if (!anchor || !Number.isFinite(anchor.right) || !Number.isFinite(anchor.y)) {
+    return topRightBounds(width, height);
+  }
+  const point = screen.getDisplayNearestPoint({ x: Math.round(anchor.right), y: Math.round(anchor.y) });
+  const { workArea } = point;
+  const x = Math.max(workArea.x, Math.min(Math.round(anchor.right) - width, workArea.x + workArea.width - width));
+  const y = Math.max(workArea.y, Math.min(Math.round(anchor.y), workArea.y + workArea.height - height));
+  return { x, y, width, height };
+}
+
+function placeWindowTopRight() {
+  if (!mainWindow) return;
+  const { width, height } = mainWindow.getBounds();
+  mainWindow.setBounds(topRightBounds(width, height));
+}
+
+function placeWindowRestored() {
+  if (!mainWindow) return;
+  const { width, height } = mainWindow.getBounds();
+  mainWindow.setBounds(anchoredBounds(width, height));
 }
 
 function animateWindowBounds(targetBounds, duration = VIEW_TRANSITION_MS) {
   if (!mainWindow || mainWindow.isDestroyed()) return Promise.resolve();
   const token = ++boundsAnimationToken;
   const start = mainWindow.getBounds();
-  const right = start.x + start.width;
+  const right = targetBounds.x + targetBounds.width;
   const startedAt = Date.now();
+  isAnimatingBounds = true;
   return new Promise((resolve) => {
+    const finish = () => {
+      if (token === boundsAnimationToken) isAnimatingBounds = false;
+      resolve();
+    };
     const step = () => {
       if (token !== boundsAnimationToken || !mainWindow || mainWindow.isDestroyed()) {
-        resolve();
+        finish();
         return;
       }
       const progress = Math.min(1, (Date.now() - startedAt) / duration);
@@ -121,7 +175,7 @@ function animateWindowBounds(targetBounds, duration = VIEW_TRANSITION_MS) {
         height
       });
       if (progress >= 1) {
-        resolve();
+        finish();
         return;
       }
       setTimeout(step, 16);
@@ -227,20 +281,14 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle("window:view:set", async (_e, request) => {
     if (!mainWindow) return;
     const view = typeof request === "string" ? request : request?.view;
-    const display = screen.getPrimaryDisplay();
-    const { workArea } = display;
+    const workArea = screen.getDisplayMatching(mainWindow.getBounds()).workArea;
     const requestedHeight = Number(request?.height);
     const isAccountsView = view === "accounts";
     const width = isAccountsView ? ACCOUNTS_WIDTH : RAIL_WIDTH;
     const h = isAccountsView
       ? Math.max(RAIL_HEIGHT, Math.min(Number.isFinite(requestedHeight) ? requestedHeight : RAIL_HEIGHT, workArea.height - 48))
       : Math.min(RAIL_HEIGHT, workArea.height - 48);
-    await animateWindowBounds({
-      x: workArea.x + workArea.width - width - 24,
-      y: workArea.y + 24,
-      width,
-      height: h
-    });
+    await animateWindowBounds(anchoredBounds(width, h));
   });
 
   // ---- manual renewal reminders (independent of quota readings) ----

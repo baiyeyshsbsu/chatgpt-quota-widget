@@ -119,7 +119,7 @@
       renewalBeaconExpired: (days) => `过期 ${days} 天`,
       renewalNoDate: "未设置日期",
       renewalsSummary: (count, attention) => `共 ${count} 项 · 需处理 ${attention} 项`,
-      renewalsMonthly: (amount) => `月支出 ¥${amount}`,
+      renewalsMonthly: (amount, currency) => `月支出 ${currencySymbol(currency)}${amount}`,
       renewalEmpty: "还没有续费提醒，先在下面添加一个",
       renewalQuickAdd: "快速添加",
       renewalNamePlaceholder: "项目名称",
@@ -133,6 +133,7 @@
       renewalEditRenewFromToday: "从「今天」起算",
       renewalEditRenewFromOld: "从旧到期日起算",
       renewalEditPayUrl: "付款页链接（可选）",
+      renewalEditCurrency: "货币",
       renewalEditMuted: "暂停提醒",
       renewalSave: "保存",
       renewalCancel: "取消",
@@ -266,7 +267,7 @@
       renewalBeaconExpired: (days) => `-${days}d`,
       renewalNoDate: "No date set",
       renewalsSummary: (count, attention) => `${count} items · ${attention} need action`,
-      renewalsMonthly: (amount) => `¥${amount}/mo`,
+      renewalsMonthly: (amount, currency) => `${currencySymbol(currency)}${amount}/mo`,
       renewalEmpty: "No renewal reminders yet — add one below",
       renewalQuickAdd: "Quick add",
       renewalNamePlaceholder: "Item name",
@@ -280,6 +281,7 @@
       renewalEditRenewFromToday: "Count from today",
       renewalEditRenewFromOld: "Stack on old deadline",
       renewalEditPayUrl: "Payment URL (optional)",
+      renewalEditCurrency: "Currency",
       renewalEditMuted: "Pause reminders",
       renewalSave: "Save",
       renewalCancel: "Cancel",
@@ -373,6 +375,8 @@
     renewalEditRemindLabel: $("renewalEditRemindLabel"),
     renewalEditRemindInput: $("renewalEditRemindInput"),
     renewalEditAmountInput: $("renewalEditAmountInput"),
+    renewalEditCurrencySelect: $("renewalEditCurrencySelect"),
+    renewalEditCurrencyLabel: $("renewalEditCurrencyLabel"),
     renewalEditRenewFromSelect: $("renewalEditRenewFromSelect"),
     renewalEditUrlInput: $("renewalEditUrlInput"),
     renewalEditMutedInput: $("renewalEditMutedInput"),
@@ -494,6 +498,7 @@
     els.renewalEditCaption.textContent = STR[lang].renewalEditTitle;
     els.renewalEditNameInput.placeholder = STR[lang].renewalNamePlaceholder;
     els.renewalEditAmountInput.placeholder = STR[lang].renewalAmountPlaceholder;
+    els.renewalEditCurrencyLabel.textContent = STR[lang].renewalEditCurrency;
     els.renewalEditCycleLabel.textContent = STR[lang].renewalEditCycle;
     els.renewalEditRemindLabel.textContent = STR[lang].renewalEditRemind;
     els.renewalEditUrlInput.placeholder = STR[lang].renewalEditPayUrl;
@@ -897,6 +902,12 @@
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   }
 
+  const CURRENCY_SYMBOLS = { CNY: "¥", USD: "$", EUR: "€", JPY: "¥", GBP: "£", HKD: "HK$" };
+  function currencySymbol(code) {
+    const key = String(code || "CNY").toUpperCase();
+    return CURRENCY_SYMBOLS[key] || key + " ";
+  }
+
   function renewalDaysLabel(item) {
     if (item.daysLeft == null) return STR[lang].renewalNoDate;
     if (item.daysLeft === 0) return STR[lang].renewalDaysToday;
@@ -931,10 +942,16 @@
     }
     // The beacon always shows the most urgent countdown: among unmuted items
     // pick the smallest daysLeft (expired = most negative wins); fall back to
-    // muted items only when everything is muted.
+    // muted items only when everything is muted. Snoozed items stay quiet until
+    // the snooze lapses, so "Later" actually silences the beacon.
+    const snoozedActive = (item) => {
+      if (!item.snoozedUntil) return false;
+      const until = Date.parse(item.snoozedUntil);
+      return Number.isFinite(until) && until > Date.now();
+    };
     const rank = (item) => (item.daysLeft == null ? Number.POSITIVE_INFINITY : item.daysLeft);
     const candidates = summary.items
-      .filter((item) => !item.muted)
+      .filter((item) => !item.muted && !snoozedActive(item))
       .concat(summary.items.filter((item) => item.muted))
       .slice()
       .sort((a, b) => rank(a) - rank(b));
@@ -942,23 +959,29 @@
     els.renewalBeacon.hidden = false;
     els.renewalBeacon.classList.toggle("due", focus.status === "due");
     els.renewalBeacon.classList.toggle("expired", focus.status === "expired");
-    els.renewalBeaconText.textContent =
-      focus.daysLeft == null
-        ? STR[lang].renewalNoDate
-        : focus.daysLeft === 0
-          ? STR[lang].renewalBeaconToday
-          : focus.daysLeft < 0
-            ? STR[lang].renewalBeaconExpired(-focus.daysLeft)
-            : STR[lang].renewalBeaconDays(focus.daysLeft);
-    if (summary.level === "none") els.body.removeAttribute("data-alert");
-    else els.body.setAttribute("data-alert", summary.level);
+    els.renewalBeacon.classList.toggle("snoozed", snoozedActive(focus));
+    if (!focus || focus.status === "ok" || snoozedActive(focus)) {
+      els.body.removeAttribute("data-alert");
+    } else {
+      els.body.setAttribute("data-alert", focus.status);
+    }
+    if (focus) {
+      els.renewalBeaconText.textContent =
+        focus.daysLeft == null
+          ? STR[lang].renewalNoDate
+          : focus.daysLeft === 0
+            ? STR[lang].renewalBeaconToday
+            : focus.daysLeft < 0
+              ? STR[lang].renewalBeaconExpired(-focus.daysLeft)
+              : STR[lang].renewalBeaconDays(focus.daysLeft);
+    }
   }
 
   function renewalCardHtml(item, compact) {
     const statusClass = item.status === "ok" ? "" : ` ${item.status}`;
     const meta = [
       item.renewsAt ? STR[lang].renewalDueDate(formatDateOnly(item.renewsAt)) : STR[lang].renewalNoDate,
-      item.amount != null ? `¥${item.amount}` : null,
+      item.amount != null ? `${currencySymbol(item.currency)}${item.amount}` : null,
       STR[lang].renewalCycleMeta(item.cycleDays),
       compact ? null : STR[lang].renewalRemindMeta(item.remindBeforeDays),
       item.muted ? STR[lang].renewalMutedMeta : null
@@ -980,6 +1003,21 @@
     );
   }
 
+  function dominantCurrency() {
+    const totals = new Map();
+    for (const item of renewalItems) {
+      if (item.archived || item.amount == null) continue;
+      const code = String(item.currency || "CNY").toUpperCase();
+      totals.set(code, (totals.get(code) || 0) + Number(item.amount));
+    }
+    let best = "CNY";
+    let bestValue = -1;
+    for (const [code, value] of totals) {
+      if (value > bestValue) { best = code; bestValue = value; }
+    }
+    return best;
+  }
+
   function renderRenewals() {
     renderRenewalTabLabel();
     renderRenewalBeacon();
@@ -988,7 +1026,10 @@
       renewalSummary.count,
       renewalSummary.attentionCount
     );
-    els.renewalsMonthlyText.textContent = STR[lang].renewalsMonthly(renewalSummary.monthlyTotal);
+    els.renewalsMonthlyText.textContent = STR[lang].renewalsMonthly(
+      renewalSummary.monthlyTotal,
+      dominantCurrency()
+    );
     const visible = renewalItems.filter((item) => !item.archived);
     els.renewalsList.innerHTML = visible.length === 0
       ? `<div class="renewals-empty">${escapeHtml(STR[lang].renewalEmpty)}</div>`
@@ -1030,6 +1071,7 @@
     els.renewalEditCycleInput.value = String(item.cycleDays);
     els.renewalEditRemindInput.value = String(item.remindBeforeDays);
     els.renewalEditAmountInput.value = item.amount == null ? "" : String(item.amount);
+    els.renewalEditCurrencySelect.value = String(item.currency || "CNY").toUpperCase();
     els.renewalEditRenewFromSelect.value = item.renewFrom;
     els.renewalEditUrlInput.value = item.payUrl || "";
     els.renewalEditMutedInput.checked = Boolean(item.muted);
@@ -1064,6 +1106,7 @@
         cycleDays: Number(els.renewalEditCycleInput.value),
         remindBeforeDays: Number(els.renewalEditRemindInput.value),
         amount: els.renewalEditAmountInput.value === "" ? null : Number(els.renewalEditAmountInput.value),
+        currency: els.renewalEditCurrencySelect.value,
         renewFrom: els.renewalEditRenewFromSelect.value,
         payUrl: els.renewalEditUrlInput.value,
         muted: els.renewalEditMutedInput.checked

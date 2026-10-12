@@ -144,6 +144,16 @@
             <label class="field"><span id="renewalEditCycleLabel">周期天数</span><input id="renewalEditCycleInput" type="number" min="1" max="3650" value="30" /></label>
             <label class="field"><span id="renewalEditRemindLabel">提前提醒</span><input id="renewalEditRemindInput" type="number" min="0" max="60" value="3" /></label>
             <input id="renewalEditAmountInput" placeholder="金额（可选）" aria-label="金额" />
+            <label class="field"><span id="renewalEditCurrencyLabel">货币</span>
+              <select id="renewalEditCurrencySelect" aria-label="货币">
+                <option value="CNY">CNY ¥</option>
+                <option value="USD">USD $</option>
+                <option value="EUR">EUR €</option>
+                <option value="JPY">JPY ¥</option>
+                <option value="GBP">GBP £</option>
+                <option value="HKD">HKD</option>
+              </select>
+            </label>
             <select id="renewalEditRenewFromSelect" aria-label="顺延起算方式">
               <option value="today">从「今天」起算</option>
               <option value="oldDeadline">从旧到期日起算</option>
